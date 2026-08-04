@@ -9,5 +9,7 @@
 - [x] T7: `ParcelService` — register (parallel geocode + fetch), refresh-on-read (R1, R2)
 - [x] T8: `ParcelEndpoint` + DTOs matching `openapi.yaml` (R1, R2, R4)
 - [x] T9: `openapi.yaml` as source of truth, served at `/openapi.yaml`
-- [ ] T10: Test suite (unit + Testcontainers) — not yet written, see `CLAUDE.md`
+- [x] T10: Test suite — unit (`CourierRouter`), application-core via port fakes
+  (`ParcelService`), WireMock HTTP-adapter tests (InPost/aggregator/Nominatim), and a
+  Testcontainers Postgres IT (skipped without Docker). 37 tests. (R1, R2, R3, R4)
 - [x] T11: Verify the build compiles — done via Gradle (`./gradlew build`, Java 21, Helidon 4.1.4)

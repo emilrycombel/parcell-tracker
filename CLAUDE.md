@@ -102,15 +102,24 @@ served live at `/openapi.yaml`. If you change an endpoint's shape, update the sp
 
 ## Testing
 
-No test suite exists yet. When adding one:
-- Unit-test `CourierRouter` detection/routing logic and each `CourierClient`'s status
-  mapping table against recorded fixture JSON (don't hit real courier APIs in tests).
-- Integration-test `PostgresParcelRepository` against Testcontainers Postgres, not a mock.
-- Integration-test the HTTP adapters (`InPostCourierClient`, `AggregatorCourierClient`,
-  `NominatimGeocoder`) against a local WireMock stub seeded with recorded fixtures — this
-  exercises the real request/response wiring without touching the network.
-- Test `ParcelService` by injecting in-memory fakes at its ports (`ParcelStore`, `Geocoder`,
-  `CourierGateway`) — no Docker, no HTTP. That fakeability is the whole point of the ports.
+Run with `./gradlew test`. The suite is layered along the ports:
+
+- **Application core** — `ParcelServiceTest` drives `ParcelService` through in-memory port
+  fakes (`InMemoryParcelStore`, `FakeGeocoder`, `FakeCourierGateway` in `testsupport/`). No
+  Docker, no HTTP. That fakeability is the whole point of the ports.
+- **Routing unit** — `CourierRouterTest` covers detection + priority-ordered dispatch with
+  stub `CourierClient`s.
+- **HTTP adapters** — `InPostCourierClientTest`, `AggregatorCourierClientTest`,
+  `NominatimGeocoderTest` run each client against a local **WireMock** stub seeded with
+  fixture JSON, exercising the real request/response wiring (status mapping, 404/500 →
+  fail-soft, headers) without touching the network. WireMock is the CI-safe "sandbox";
+  don't point tests at real courier/Nominatim endpoints.
+- **Persistence** — `PostgresParcelRepositoryIT` runs against a real Postgres via
+  **Testcontainers**. It's annotated `@Testcontainers(disabledWithoutDocker = true)`, so it
+  runs where Docker is available and is skipped (not failed) where it isn't.
+
+Shared test helpers live in `src/test/java/.../testsupport/` (`TestConfig` builds an isolated
+Helidon `Config` from a map; the fakes implement the driven ports).
 
 ## Environment variables
 
