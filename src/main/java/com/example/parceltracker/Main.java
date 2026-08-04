@@ -36,7 +36,11 @@ import java.util.List;
 public final class Main {
 
     public static void main(String[] args) {
-        Config config = Config.create();
+        // Helidon doesn't resolve ${VAR:default} placeholders natively — add the filter that does,
+        // otherwise application.yaml's defaults (JDBC URL, ports, …) are taken literally.
+        Config config = Config.builder()
+                .addFilter(new EnvSubstitutionConfigFilter())
+                .build();
 
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())

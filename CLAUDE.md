@@ -133,7 +133,11 @@ verification against reality.
 
 ## Environment variables
 
-See `application.yaml` for the full list and defaults. The ones you'll actually touch:
+`application.yaml` uses `${VAR:default}` placeholders. Helidon SE does **not** resolve these
+natively — `EnvSubstitutionConfigFilter` (registered on the `Config` in `Main`) does, reading
+the env var or falling back to the default. Without it the values would be literal `${...}`
+strings and the service wouldn't start. See `application.yaml` for the full list and defaults.
+The ones you'll actually touch:
 
 | Var | Purpose |
 |---|---|
