@@ -41,11 +41,11 @@ public final class PostgresParcelRepository implements ParcelStore {
     public Parcel insert(Parcel p) {
         String sql = """
             INSERT INTO parcels
-                (id, tracking_number, courier, status,
+                (id, tracking_number, external_id, courier, status,
                  street, house_number, apartment_number, city, postal_code, country,
                  latitude, longitude, geocode_provider, geocoded_at,
                  events, created_at, last_refreshed_at)
-            VALUES (?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?::jsonb, ?, ?)
+            VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?::jsonb, ?, ?)
             """;
         try (Connection c = dataSource.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             bindAll(ps, p);
@@ -73,10 +73,13 @@ public final class PostgresParcelRepository implements ParcelStore {
     }
 
     @Override
-    public List<Parcel> findAll(int page, int size, ParcelStatus statusFilter) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM parcels");
+    public List<Parcel> findAll(int page, int size, ParcelStatus statusFilter, String externalIdFilter) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM parcels WHERE 1 = 1");
         if (statusFilter != null) {
-            sql.append(" WHERE status = ?");
+            sql.append(" AND status = ?");
+        }
+        if (externalIdFilter != null) {
+            sql.append(" AND external_id = ?");
         }
         sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
 
@@ -84,6 +87,9 @@ public final class PostgresParcelRepository implements ParcelStore {
             int idx = 1;
             if (statusFilter != null) {
                 ps.setString(idx++, statusFilter.name());
+            }
+            if (externalIdFilter != null) {
+                ps.setString(idx++, externalIdFilter);
             }
             ps.setInt(idx++, size);
             ps.setInt(idx, page * size);
@@ -145,33 +151,34 @@ public final class PostgresParcelRepository implements ParcelStore {
     private void bindAll(PreparedStatement ps, Parcel p) throws SQLException {
         ps.setObject(1, p.id());
         ps.setString(2, p.trackingNumber());
-        ps.setString(3, p.courier().name());
-        ps.setString(4, p.status().name());
+        ps.setString(3, p.externalId());
+        ps.setString(4, p.courier().name());
+        ps.setString(5, p.status().name());
 
         Address a = p.deliveryAddress();
-        ps.setString(5, a.street());
-        ps.setString(6, a.houseNumber());
-        ps.setString(7, a.apartmentNumber());
-        ps.setString(8, a.city());
-        ps.setString(9, a.postalCode());
-        ps.setString(10, a.country());
+        ps.setString(6, a.street());
+        ps.setString(7, a.houseNumber());
+        ps.setString(8, a.apartmentNumber());
+        ps.setString(9, a.city());
+        ps.setString(10, a.postalCode());
+        ps.setString(11, a.country());
 
         GeoLocation g = p.geoLocation();
         if (g != null) {
-            ps.setDouble(11, g.latitude());
-            ps.setDouble(12, g.longitude());
-            ps.setString(13, g.provider());
-            ps.setTimestamp(14, Timestamp.from(g.geocodedAt()));
+            ps.setDouble(12, g.latitude());
+            ps.setDouble(13, g.longitude());
+            ps.setString(14, g.provider());
+            ps.setTimestamp(15, Timestamp.from(g.geocodedAt()));
         } else {
-            ps.setNull(11, Types.DOUBLE);
             ps.setNull(12, Types.DOUBLE);
-            ps.setNull(13, Types.VARCHAR);
-            ps.setNull(14, Types.TIMESTAMP_WITH_TIMEZONE);
+            ps.setNull(13, Types.DOUBLE);
+            ps.setNull(14, Types.VARCHAR);
+            ps.setNull(15, Types.TIMESTAMP_WITH_TIMEZONE);
         }
 
-        ps.setString(15, writeEvents(p.events()));
-        ps.setTimestamp(16, Timestamp.from(p.createdAt()));
-        ps.setTimestamp(17, p.lastRefreshedAt() != null ? Timestamp.from(p.lastRefreshedAt()) : null);
+        ps.setString(16, writeEvents(p.events()));
+        ps.setTimestamp(17, Timestamp.from(p.createdAt()));
+        ps.setTimestamp(18, p.lastRefreshedAt() != null ? Timestamp.from(p.lastRefreshedAt()) : null);
     }
 
     private Parcel mapRow(ResultSet rs) throws SQLException {
@@ -201,6 +208,7 @@ public final class PostgresParcelRepository implements ParcelStore {
         return new Parcel(
                 id,
                 rs.getString("tracking_number"),
+                rs.getString("external_id"),
                 Courier.valueOf(rs.getString("courier")),
                 ParcelStatus.valueOf(rs.getString("status")),
                 address,

@@ -53,6 +53,7 @@ curl -X POST localhost:8080/api/v1/parcels \
   -H "Content-Type: application/json" \
   -d '{
     "trackingNumber": "590123456789012345678901",
+    "externalId": "ORDER-2026-000123",
     "deliveryAddress": {
       "street": "Marszałkowska",
       "houseNumber": "1",
@@ -61,6 +62,13 @@ curl -X POST localhost:8080/api/v1/parcels \
       "country": "PL"
     }
   }'
+```
+
+`externalId` is optional — your own order reference. List all parcels linked to an order
+(useful for displaying an order's shipments together; several parcels may share one id):
+
+```bash
+curl "localhost:8080/api/v1/parcels?externalId=ORDER-2026-000123"
 ```
 
 Fetch (refreshes the status from InPost first, unless it was refreshed within

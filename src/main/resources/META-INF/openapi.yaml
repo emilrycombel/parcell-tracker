@@ -47,6 +47,11 @@ paths:
           in: query
           required: false
           schema: { $ref: '#/components/schemas/ParcelStatus' }
+        - name: externalId
+          in: query
+          required: false
+          description: Return only parcels linked to this caller order reference
+          schema: { type: string }
       responses:
         '200':
           description: Page of parcels (not refreshed — use GET /parcels/{id} to refresh)
@@ -147,6 +152,10 @@ components:
       required: [trackingNumber, deliveryAddress]
       properties:
         trackingNumber: { type: string }
+        externalId:
+          type: string
+          nullable: true
+          description: Optional caller order reference — links this parcel to an order
         courier:
           allOf: [{ $ref: '#/components/schemas/Courier' }]
           description: Optional — auto-detected from tracking number format if omitted
@@ -157,6 +166,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         trackingNumber: { type: string }
+        externalId: { type: string, nullable: true, description: Caller order reference, if linked }
         courier: { $ref: '#/components/schemas/Courier' }
         status: { $ref: '#/components/schemas/ParcelStatus' }
         deliveryAddress: { $ref: '#/components/schemas/Address' }

@@ -23,7 +23,11 @@ public interface ParcelStore {
 
     Optional<Parcel> findById(UUID id);
 
-    List<Parcel> findAll(int page, int size, ParcelStatus statusFilter);
+    /**
+     * Returns a page of parcels, optionally narrowed by status and/or external id. A null
+     * filter means "don't filter on that dimension"; the two compose.
+     */
+    List<Parcel> findAll(int page, int size, ParcelStatus statusFilter, String externalIdFilter);
 
     /** Persists a status/events/geolocation refresh produced by the application layer. */
     void update(Parcel parcel);

@@ -38,9 +38,10 @@ public final class InMemoryParcelStore implements ParcelStore {
     }
 
     @Override
-    public List<Parcel> findAll(int page, int size, ParcelStatus statusFilter) {
+    public List<Parcel> findAll(int page, int size, ParcelStatus statusFilter, String externalIdFilter) {
         return byId.values().stream()
                 .filter(p -> statusFilter == null || p.status() == statusFilter)
+                .filter(p -> externalIdFilter == null || externalIdFilter.equals(p.externalId()))
                 .sorted(Comparator.comparing(Parcel::createdAt).reversed())
                 .skip((long) page * size)
                 .limit(size)

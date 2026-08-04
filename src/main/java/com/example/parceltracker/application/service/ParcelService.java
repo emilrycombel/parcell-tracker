@@ -57,7 +57,7 @@ public final class ParcelService implements ParcelTrackingUseCase {
     }
 
     @Override
-    public Parcel register(String trackingNumber, Courier requestedCourier, Address address) {
+    public Parcel register(String trackingNumber, Courier requestedCourier, String externalId, Address address) {
         Courier courier = (requestedCourier == null || requestedCourier == Courier.UNKNOWN)
                 ? courierGateway.detect(trackingNumber)
                 : requestedCourier;
@@ -74,6 +74,7 @@ public final class ParcelService implements ParcelTrackingUseCase {
         Parcel parcel = new Parcel(
                 UUID.randomUUID(),
                 trackingNumber,
+                externalId,
                 courier,
                 tracking.status() == ParcelStatus.UNKNOWN ? ParcelStatus.REGISTERED : tracking.status(),
                 address,
@@ -119,8 +120,8 @@ public final class ParcelService implements ParcelTrackingUseCase {
     }
 
     @Override
-    public List<Parcel> list(int page, int size, ParcelStatus statusFilter) {
-        return store.findAll(page, size, statusFilter);
+    public List<Parcel> list(int page, int size, ParcelStatus statusFilter, String externalId) {
+        return store.findAll(page, size, statusFilter, externalId);
     }
 
     @Override

@@ -46,7 +46,7 @@ class ParcelServiceRefreshThrottleTest {
     private Parcel registerWithEvents() {
         TrackingEvent event = new TrackingEvent(T0.minusSeconds(3600), "in_transit", "in transit", "Warszawa");
         courier.fetching(new CourierTrackingResult(ParcelStatus.IN_TRANSIT, List.of(event)));
-        return service.register("590123456789012345678901", Courier.INPOST, ADDRESS);
+        return service.register("590123456789012345678901", Courier.INPOST, null, ADDRESS);
     }
 
     @Test
@@ -81,7 +81,7 @@ class ParcelServiceRefreshThrottleTest {
         ParcelService noThrottle = new ParcelService(store,
                 FakeGeocoder.failing(), courier, Duration.ZERO, clock);
         courier.fetching(CourierTrackingResult.unknown());
-        Parcel registered = noThrottle.register("111", Courier.DPD, ADDRESS);
+        Parcel registered = noThrottle.register("111", Courier.DPD, null, ADDRESS);
         int calls = courier.fetchCalls();
 
         noThrottle.getRefreshed(registered.id());

@@ -79,11 +79,15 @@ class PostgresParcelRepositoryIT {
     }
 
     private Parcel sample(String trackingNumber, Courier courier, ParcelStatus status) {
+        return sample(trackingNumber, null, courier, status);
+    }
+
+    private Parcel sample(String trackingNumber, String externalId, Courier courier, ParcelStatus status) {
         Address address = new Address("Marszałkowska", "1", "12", "Warszawa", "00-001", "PL");
         GeoLocation geo = new GeoLocation(52.2297, 21.0122, "nominatim", Instant.parse("2026-08-01T10:00:00Z"));
         List<TrackingEvent> events = List.of(
                 new TrackingEvent(Instant.parse("2026-08-01T08:00:00Z"), "confirmed", "confirmed", "Warszawa"));
-        return new Parcel(UUID.randomUUID(), trackingNumber, courier, status, address, geo, events,
+        return new Parcel(UUID.randomUUID(), trackingNumber, externalId, courier, status, address, geo, events,
                 Instant.parse("2026-08-01T07:00:00Z"), null);
     }
 
@@ -118,7 +122,7 @@ class PostgresParcelRepositoryIT {
         repository.insert(sample("111", Courier.DPD, ParcelStatus.REGISTERED));
         repository.insert(sample("111", Courier.DHL, ParcelStatus.REGISTERED));
 
-        assertThat(repository.findAll(0, 10, null)).hasSize(2);
+        assertThat(repository.findAll(0, 10, null, null)).hasSize(2);
     }
 
     @Test
@@ -143,10 +147,29 @@ class PostgresParcelRepositoryIT {
         repository.insert(sample("b", Courier.DHL, ParcelStatus.IN_TRANSIT));
         repository.insert(sample("c", Courier.GLS, ParcelStatus.DELIVERED));
 
-        assertThat(repository.findAll(0, 10, ParcelStatus.DELIVERED)).hasSize(2);
-        assertThat(repository.findAll(0, 10, ParcelStatus.IN_TRANSIT)).hasSize(1);
-        assertThat(repository.findAll(0, 2, null)).hasSize(2);
-        assertThat(repository.findAll(1, 2, null)).hasSize(1); // second page
+        assertThat(repository.findAll(0, 10, ParcelStatus.DELIVERED, null)).hasSize(2);
+        assertThat(repository.findAll(0, 10, ParcelStatus.IN_TRANSIT, null)).hasSize(1);
+        assertThat(repository.findAll(0, 2, null, null)).hasSize(2);
+        assertThat(repository.findAll(1, 2, null, null)).hasSize(1); // second page
+    }
+
+    @Test
+    void externalId_roundTrips_andFiltersList() {
+        repository.insert(sample("a", "ORDER-1", Courier.DPD, ParcelStatus.REGISTERED));
+        repository.insert(sample("b", "ORDER-1", Courier.DHL, ParcelStatus.REGISTERED));
+        repository.insert(sample("c", "ORDER-2", Courier.GLS, ParcelStatus.REGISTERED));
+        repository.insert(sample("d", null, Courier.UPS, ParcelStatus.REGISTERED));
+
+        assertThat(repository.findAll(0, 10, null, "ORDER-1")).hasSize(2);
+        assertThat(repository.findAll(0, 10, null, "ORDER-2")).hasSize(1);
+        assertThat(repository.findAll(0, 10, null, "NOPE")).isEmpty();
+
+        Parcel one = repository.findAll(0, 10, null, "ORDER-2").get(0);
+        assertThat(one.externalId()).isEqualTo("ORDER-2"); // column round-trips
+
+        // Filter composes with status.
+        assertThat(repository.findAll(0, 10, ParcelStatus.REGISTERED, "ORDER-1")).hasSize(2);
+        assertThat(repository.findAll(0, 10, ParcelStatus.DELIVERED, "ORDER-1")).isEmpty();
     }
 
     @Test

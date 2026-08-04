@@ -24,13 +24,16 @@ public interface ParcelTrackingUseCase {
      * @throws com.example.parceltracker.application.port.out.DuplicateParcelException
      *         if this (tracking number, courier) is already registered.
      */
-    Parcel register(String trackingNumber, Courier requestedCourier, Address address);
+    Parcel register(String trackingNumber, Courier requestedCourier, String externalId, Address address);
 
     /** Loads a parcel, refreshes its status from the courier, persists, and returns the fresh view. */
     Optional<Parcel> getRefreshed(UUID id);
 
-    /** Returns a page of parcels without triggering a per-item courier refresh. */
-    List<Parcel> list(int page, int size, ParcelStatus statusFilter);
+    /**
+     * Returns a page of parcels without triggering a per-item courier refresh, optionally
+     * narrowed by status and/or external id (null = don't filter on that dimension).
+     */
+    List<Parcel> list(int page, int size, ParcelStatus statusFilter, String externalId);
 
     boolean delete(UUID id);
 }

@@ -46,12 +46,13 @@ public final class Dtos {
         }
     }
 
-    public record RegisterParcelRequest(String trackingNumber, Courier courier, AddressDto deliveryAddress) {
+    public record RegisterParcelRequest(String trackingNumber, Courier courier, String externalId, AddressDto deliveryAddress) {
     }
 
     public record ParcelResponse(
             UUID id,
             String trackingNumber,
+            String externalId,
             Courier courier,
             ParcelStatus status,
             AddressDto deliveryAddress,
@@ -64,6 +65,7 @@ public final class Dtos {
             return new ParcelResponse(
                     p.id(),
                     p.trackingNumber(),
+                    p.externalId(),
                     p.courier(),
                     p.status(),
                     AddressDto.from(p.deliveryAddress()),

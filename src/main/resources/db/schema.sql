@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS parcels (
     id                 UUID PRIMARY KEY,
     tracking_number    VARCHAR(64)  NOT NULL,
+    external_id        VARCHAR(128),
     courier            VARCHAR(32)  NOT NULL,
     status             VARCHAR(32)  NOT NULL,
 
@@ -26,5 +27,7 @@ CREATE TABLE IF NOT EXISTS parcels (
 
 CREATE INDEX IF NOT EXISTS idx_parcels_status ON parcels (status);
 CREATE INDEX IF NOT EXISTS idx_parcels_tracking_number ON parcels (tracking_number);
+-- Look up all parcels linked to a caller's order reference
+CREATE INDEX IF NOT EXISTS idx_parcels_external_id ON parcels (external_id);
 -- Speeds up any future "parcels near this point" queries
 CREATE INDEX IF NOT EXISTS idx_parcels_geo ON parcels (latitude, longitude);

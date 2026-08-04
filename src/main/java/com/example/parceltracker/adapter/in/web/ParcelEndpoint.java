@@ -46,6 +46,7 @@ public final class ParcelEndpoint implements HttpService {
             Parcel parcel = parcelTracking.register(
                     body.trackingNumber().trim(),
                     body.courier(),
+                    blankToNull(body.externalId()),
                     body.deliveryAddress().toDomain()
             );
             res.status(Status.CREATED_201).send(ParcelResponse.from(parcel));
@@ -81,11 +82,16 @@ public final class ParcelEndpoint implements HttpService {
         int page = req.query().first("page").map(Integer::parseInt).orElse(0);
         int size = req.query().first("size").map(Integer::parseInt).orElse(20);
         ParcelStatus statusFilter = req.query().first("status").map(ParcelStatus::valueOf).orElse(null);
+        String externalId = req.query().first("externalId").map(String::trim).filter(s -> !s.isEmpty()).orElse(null);
 
-        List<ParcelResponse> parcels = parcelTracking.list(page, size, statusFilter).stream()
+        List<ParcelResponse> parcels = parcelTracking.list(page, size, statusFilter, externalId).stream()
                 .map(ParcelResponse::from)
                 .toList();
         res.send(parcels);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void delete(ServerRequest req, ServerResponse res) {

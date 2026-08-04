@@ -26,6 +26,8 @@ This repo is spec-driven. Before writing or changing code:
 Current specs:
 - `specs/parcel-registration-and-tracking/` — the initial feature set (register, refresh,
   list, delete parcels). Status: implemented, see its `tasks.md`.
+- `specs/external-order-linking/` — attach a caller order reference (`externalId`) to a
+  parcel and list parcels by it (`GET /parcels?externalId=`). Status: implemented.
 
 ## Build & run
 

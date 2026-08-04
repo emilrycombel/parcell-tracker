@@ -7,6 +7,7 @@ import java.util.UUID;
 public record Parcel(
         UUID id,
         String trackingNumber,
+        String externalId,
         Courier courier,
         ParcelStatus status,
         Address deliveryAddress,
@@ -16,12 +17,12 @@ public record Parcel(
         Instant lastRefreshedAt
 ) {
     public Parcel withGeoLocation(GeoLocation location) {
-        return new Parcel(id, trackingNumber, courier, status, deliveryAddress,
+        return new Parcel(id, trackingNumber, externalId, courier, status, deliveryAddress,
                 location, events, createdAt, lastRefreshedAt);
     }
 
     public Parcel withRefreshedTracking(ParcelStatus newStatus, List<TrackingEvent> newEvents, Instant refreshedAt) {
-        return new Parcel(id, trackingNumber, courier, newStatus, deliveryAddress,
+        return new Parcel(id, trackingNumber, externalId, courier, newStatus, deliveryAddress,
                 geoLocation, newEvents, createdAt, refreshedAt);
     }
 }
