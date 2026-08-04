@@ -5,9 +5,11 @@ services:
     environment:
       POSTGRES_DB: parcels
       POSTGRES_USER: parcels
-      POSTGRES_PASSWORD: parcels
+      # Local dev default; override for anything shared: POSTGRES_PASSWORD=... docker compose up -d
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-parcels}
     ports:
-      - "5432:5432"
+      # Bind to loopback only so the dev database isn't exposed on the LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       - parcels_data:/var/lib/postgresql/data
 

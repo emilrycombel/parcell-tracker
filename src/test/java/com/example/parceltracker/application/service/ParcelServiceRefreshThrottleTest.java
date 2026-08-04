@@ -80,11 +80,14 @@ class ParcelServiceRefreshThrottleTest {
     void zeroInterval_alwaysRefreshes() {
         ParcelService noThrottle = new ParcelService(store,
                 FakeGeocoder.failing(), courier, Duration.ZERO, clock);
-        courier.fetching(CourierTrackingResult.unknown());
+        // A non-empty feed makes lastRefreshedAt non-null, so the interval decision (not a null
+        // timestamp) is what actually determines whether the courier is called again.
+        courier.fetching(new CourierTrackingResult(ParcelStatus.IN_TRANSIT,
+                List.of(new TrackingEvent(T0.minusSeconds(60), "in_transit", "in transit", "Warszawa"))));
         Parcel registered = noThrottle.register("111", Courier.DPD, null, ADDRESS);
         int calls = courier.fetchCalls();
 
-        noThrottle.getRefreshed(registered.id());
+        noThrottle.getRefreshed(registered.id()); // same instant, zero interval → must still refresh
 
         assertThat(courier.fetchCalls()).isEqualTo(calls + 1);
     }

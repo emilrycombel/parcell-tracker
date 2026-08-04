@@ -94,6 +94,10 @@ paths:
           description: Not found
 
   /health:
+    # Served at the root, not under the /api/v1 server prefix — override so the documented
+    # path resolves to /health (matching Main.routing).
+    servers:
+      - url: /
     get:
       summary: Liveness/readiness probe
       operationId: health

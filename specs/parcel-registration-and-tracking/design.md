@@ -72,13 +72,16 @@ inward (adapter → application → domain); the domain imports no framework.
 
 ## Error handling
 
-- Duplicate registration → `ParcelRepository.DuplicateParcelException` on unique-constraint
-  violation (SQLSTATE 23505) → mapped to 409 in `ParcelEndpoint`.
-- Geocoding failure → caught inside `GeocodingService.geocode`, returns `Optional.empty()`,
-  never propagates — registration proceeds without coordinates.
+- Duplicate registration → `application.port.out.DuplicateParcelException` (thrown by the
+  Postgres adapter on a unique-constraint violation, SQLSTATE 23505) → mapped to 409 in
+  `ParcelEndpoint`.
+- Geocoding failure → caught inside `NominatimGeocoder.geocode` (the `Geocoder` port),
+  returns `Optional.empty()`, never propagates — registration proceeds without coordinates.
 - Courier call failure/timeout → caught inside each `CourierClient.fetchTracking`, returns
   `CourierTrackingResult.unknown()` rather than throwing — refresh keeps the prior status.
 - Malformed UUID in path → 400, not a 500 from a parse exception bubbling up.
+- Malformed request body / invalid list query params (page, size, status) → 400 in
+  `ParcelEndpoint`, not 500. Internal exception text is logged server-side, never returned.
 - Malformed event timestamp → `TrackingTimestamps.parseOrElse` falls back per-event to
   "now" rather than throwing, so one bad date doesn't discard the whole tracking result.
 
@@ -96,8 +99,24 @@ inward (adapter → application → domain); the domain imports no framework.
   union and sorts by time — replacing the earlier size comparison, which could drop events on
   reorder/shorter feeds.
 
+## Known limitation: concurrent refresh (no optimistic locking yet)
+
+`getRefreshed` does read → courier fetch → `store.update` without a row lock or version check,
+so two simultaneous refreshes of the same parcel can race on the write (a classic lost
+update). We accept this for now because it is **self-healing**: couriers return full history
+each time and `mergeEvents` is a union, so the next refresh re-fetches and re-writes the
+complete set. The refresh throttle also makes concurrent refreshes of one parcel rare. If this
+becomes a real problem, add an optimistic-lock `version` column (bump-and-check in `update`,
+retry on conflict) or move the merge into a short `SELECT … FOR UPDATE` transaction *after*
+the courier call. Tracked as T14.
+
 ## Testing strategy
 
-Not yet implemented (see `CLAUDE.md` Testing section for the intended shape: fixture-based
-unit tests for status-mapping tables, Testcontainers for the repository, fakes for
-`GeocodingService`/`CourierClient` in service-layer tests).
+Implemented and layered along the ports (see `CLAUDE.md` Testing for detail):
+- `ParcelServiceTest` + `ParcelServiceRefreshThrottleTest` drive the core through in-memory
+  port fakes (`InMemoryParcelStore`, `FakeGeocoder`, `FakeCourierGateway`).
+- `CourierRouterTest` covers detection/priority dispatch as a unit.
+- `InPostCourierClientTest`, `AggregatorCourierClientTest`, `NominatimGeocoderTest` run the
+  real HTTP clients against a WireMock stub seeded with fixtures.
+- `PostgresParcelRepositoryIT` runs against Testcontainers Postgres (skipped without Docker).
+- Opt-in `@Tag("live")` smoke tests hit the real endpoints via `./gradlew liveTest`.

@@ -105,7 +105,9 @@ public final class ParcelService implements ParcelTrackingUseCase {
         CourierTrackingResult tracking = courierGateway.fetchTracking(parcel.courier(), parcel.trackingNumber());
 
         Parcel refreshed = tracking.status() == ParcelStatus.UNKNOWN && tracking.events().isEmpty()
-                ? parcel // courier had nothing new — don't overwrite a good status with UNKNOWN
+                // Courier had nothing new — keep the prior status/events, but still record that we
+                // tried, so the throttle engages instead of re-fetching on every subsequent read.
+                ? parcel.withRefreshAttemptAt(now)
                 : parcel.withRefreshedTracking(tracking.status(), mergeEvents(parcel.events(), tracking.events()), now);
 
         // Backfill geocoding if it failed at registration time.

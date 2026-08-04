@@ -2,6 +2,7 @@ package com.example.parceltracker.live;
 
 import com.example.parceltracker.adapter.out.courier.InPostCourierClient;
 import com.example.parceltracker.application.port.out.CourierTrackingResult;
+import com.example.parceltracker.domain.ParcelStatus;
 import com.example.parceltracker.testsupport.TestConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -38,7 +39,9 @@ class InPostLiveTest {
         CourierTrackingResult result = client.fetchTracking(number);
 
         assertThat(result).isNotNull();
-        assertThat(result.status()).isNotNull();
+        // A real, known shipment must resolve to a real status — not the fail-soft UNKNOWN
+        // the adapter returns for HTTP/parse failures or an unrecognized number.
+        assertThat(result.status()).isNotEqualTo(ParcelStatus.UNKNOWN);
         System.out.println("[live] InPost " + number + " -> " + result.status()
                 + " (" + result.events().size() + " events)");
     }

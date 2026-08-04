@@ -21,7 +21,8 @@ Unified parcel tracking service for Polish couriers, spec-first (see
 - **Geocoding**: free, no key, via OpenStreetMap Nominatim. Result is cached on the parcel
   row so each address is only geocoded once, respecting Nominatim's ~1 req/sec policy.
 - Registration runs geocoding and the initial courier fetch **concurrently** on virtual
-  threads. `GET /parcels/{id}` always refreshes from the courier before returning.
+  threads. `GET /parcels/{id}` refreshes from the courier before returning, but not more
+  often than `REFRESH_MIN_INTERVAL_SECONDS` per parcel (default 300; 0 = always refresh).
 
 ## Run locally
 

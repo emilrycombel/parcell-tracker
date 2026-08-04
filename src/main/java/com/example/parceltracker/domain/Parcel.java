@@ -16,6 +16,11 @@ public record Parcel(
         Instant createdAt,
         Instant lastRefreshedAt
 ) {
+    public Parcel {
+        // Defensive copy so a caller can't mutate the parcel's events after construction.
+        events = events == null ? List.of() : List.copyOf(events);
+    }
+
     public Parcel withGeoLocation(GeoLocation location) {
         return new Parcel(id, trackingNumber, externalId, courier, status, deliveryAddress,
                 location, events, createdAt, lastRefreshedAt);
@@ -24,5 +29,11 @@ public record Parcel(
     public Parcel withRefreshedTracking(ParcelStatus newStatus, List<TrackingEvent> newEvents, Instant refreshedAt) {
         return new Parcel(id, trackingNumber, externalId, courier, newStatus, deliveryAddress,
                 geoLocation, newEvents, createdAt, refreshedAt);
+    }
+
+    /** Records that a refresh was attempted (advances lastRefreshedAt) without changing status/events. */
+    public Parcel withRefreshAttemptAt(Instant refreshedAt) {
+        return new Parcel(id, trackingNumber, externalId, courier, status, deliveryAddress,
+                geoLocation, events, createdAt, refreshedAt);
     }
 }

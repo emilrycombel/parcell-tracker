@@ -26,7 +26,7 @@ if the relationship becomes 1:1 (see requirements Open questions).
 
 Adds one nullable column to the existing `parcels` table:
 
-```
+```sql
 external_id  VARCHAR(128)     -- caller's order reference, opaque; nullable; non-unique
 ```
 

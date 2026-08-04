@@ -66,6 +66,7 @@ public final class Main {
                 .build();
 
         WebServer server = WebServer.builder()
+                .host(config.get("server.host").asString().orElse("localhost"))
                 .port(config.get("server.port").asInt().orElse(8080))
                 .mediaContext(mediaContext)
                 .routing(routing -> routing(routing, parcelEndpoint))
