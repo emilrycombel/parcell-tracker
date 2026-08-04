@@ -1,4 +1,4 @@
-package com.example.parceltracker.model;
+package com.example.parceltracker.domain;
 
 public record Address(
         String street,

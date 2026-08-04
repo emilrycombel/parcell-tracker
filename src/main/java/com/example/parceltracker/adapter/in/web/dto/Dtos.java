@@ -1,11 +1,17 @@
-package com.example.parceltracker.web.dto;
+package com.example.parceltracker.adapter.in.web.dto;
 
-import com.example.parceltracker.model.*;
+import com.example.parceltracker.domain.Address;
+import com.example.parceltracker.domain.Courier;
+import com.example.parceltracker.domain.GeoLocation;
+import com.example.parceltracker.domain.Parcel;
+import com.example.parceltracker.domain.ParcelStatus;
+import com.example.parceltracker.domain.TrackingEvent;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+/** Wire-format DTOs for the HTTP adapter, kept decoupled from the domain records. */
 public final class Dtos {
 
     private Dtos() {

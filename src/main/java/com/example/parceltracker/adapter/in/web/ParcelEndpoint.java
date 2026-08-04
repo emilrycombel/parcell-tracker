@@ -1,10 +1,12 @@
-package com.example.parceltracker.web;
+package com.example.parceltracker.adapter.in.web;
 
-import com.example.parceltracker.db.ParcelRepository;
-import com.example.parceltracker.model.Parcel;
-import com.example.parceltracker.model.ParcelStatus;
-import com.example.parceltracker.service.ParcelService;
-import com.example.parceltracker.web.dto.Dtos.*;
+import com.example.parceltracker.adapter.in.web.dto.Dtos.ErrorResponse;
+import com.example.parceltracker.adapter.in.web.dto.Dtos.ParcelResponse;
+import com.example.parceltracker.adapter.in.web.dto.Dtos.RegisterParcelRequest;
+import com.example.parceltracker.application.port.in.ParcelTrackingUseCase;
+import com.example.parceltracker.application.port.out.DuplicateParcelException;
+import com.example.parceltracker.domain.Parcel;
+import com.example.parceltracker.domain.ParcelStatus;
 import io.helidon.http.Status;
 import io.helidon.webserver.http.HttpRules;
 import io.helidon.webserver.http.HttpService;
@@ -15,12 +17,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/** Driving adapter: HTTP surface over the {@link ParcelTrackingUseCase} port. */
 public final class ParcelEndpoint implements HttpService {
 
-    private final ParcelService parcelService;
+    private final ParcelTrackingUseCase parcelTracking;
 
-    public ParcelEndpoint(ParcelService parcelService) {
-        this.parcelService = parcelService;
+    public ParcelEndpoint(ParcelTrackingUseCase parcelTracking) {
+        this.parcelTracking = parcelTracking;
     }
 
     @Override
@@ -40,13 +43,13 @@ public final class ParcelEndpoint implements HttpService {
                 return;
             }
 
-            Parcel parcel = parcelService.register(
+            Parcel parcel = parcelTracking.register(
                     body.trackingNumber().trim(),
                     body.courier(),
                     body.deliveryAddress().toDomain()
             );
             res.status(Status.CREATED_201).send(ParcelResponse.from(parcel));
-        } catch (ParcelRepository.DuplicateParcelException e) {
+        } catch (DuplicateParcelException e) {
             res.status(Status.CONFLICT_409).send(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             res.status(Status.INTERNAL_SERVER_ERROR_500).send(new ErrorResponse("Registration failed: " + e.getMessage()));
@@ -63,7 +66,7 @@ public final class ParcelEndpoint implements HttpService {
         }
 
         try {
-            Optional<Parcel> refreshed = parcelService.getRefreshed(id);
+            Optional<Parcel> refreshed = parcelTracking.getRefreshed(id);
             if (refreshed.isEmpty()) {
                 res.status(Status.NOT_FOUND_404).send(new ErrorResponse("Parcel not found: " + id));
                 return;
@@ -79,7 +82,7 @@ public final class ParcelEndpoint implements HttpService {
         int size = req.query().first("size").map(Integer::parseInt).orElse(20);
         ParcelStatus statusFilter = req.query().first("status").map(ParcelStatus::valueOf).orElse(null);
 
-        List<ParcelResponse> parcels = parcelService.list(page, size, statusFilter).stream()
+        List<ParcelResponse> parcels = parcelTracking.list(page, size, statusFilter).stream()
                 .map(ParcelResponse::from)
                 .toList();
         res.send(parcels);
@@ -94,7 +97,7 @@ public final class ParcelEndpoint implements HttpService {
             return;
         }
 
-        boolean deleted = parcelService.delete(id);
+        boolean deleted = parcelTracking.delete(id);
         res.status(deleted ? Status.NO_CONTENT_204 : Status.NOT_FOUND_404).send();
     }
 }

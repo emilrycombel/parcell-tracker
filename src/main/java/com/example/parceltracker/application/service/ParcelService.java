@@ -1,10 +1,16 @@
-package com.example.parceltracker.service;
+package com.example.parceltracker.application.service;
 
-import com.example.parceltracker.courier.CourierRouter;
-import com.example.parceltracker.courier.CourierTrackingResult;
-import com.example.parceltracker.db.ParcelRepository;
-import com.example.parceltracker.geocoding.GeocodingService;
-import com.example.parceltracker.model.*;
+import com.example.parceltracker.application.port.in.ParcelTrackingUseCase;
+import com.example.parceltracker.application.port.out.CourierGateway;
+import com.example.parceltracker.application.port.out.CourierTrackingResult;
+import com.example.parceltracker.application.port.out.Geocoder;
+import com.example.parceltracker.application.port.out.ParcelStore;
+import com.example.parceltracker.domain.Address;
+import com.example.parceltracker.domain.Courier;
+import com.example.parceltracker.domain.GeoLocation;
+import com.example.parceltracker.domain.Parcel;
+import com.example.parceltracker.domain.ParcelStatus;
+import com.example.parceltracker.domain.TrackingEvent;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,28 +20,35 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-public final class ParcelService {
+/**
+ * The application core. Orchestrates the driven ports ({@link ParcelStore},
+ * {@link Geocoder}, {@link CourierGateway}) to satisfy the {@link ParcelTrackingUseCase}
+ * driving port. Has no knowledge of HTTP, JDBC, or any specific courier/geocoder — those
+ * live behind the ports, which makes this class unit-testable with in-memory fakes.
+ */
+public final class ParcelService implements ParcelTrackingUseCase {
 
-    private final ParcelRepository repository;
-    private final GeocodingService geocodingService;
-    private final CourierRouter courierRouter;
+    private final ParcelStore store;
+    private final Geocoder geocoder;
+    private final CourierGateway courierGateway;
     private final ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-    public ParcelService(ParcelRepository repository, GeocodingService geocodingService, CourierRouter courierRouter) {
-        this.repository = repository;
-        this.geocodingService = geocodingService;
-        this.courierRouter = courierRouter;
+    public ParcelService(ParcelStore store, Geocoder geocoder, CourierGateway courierGateway) {
+        this.store = store;
+        this.geocoder = geocoder;
+        this.courierGateway = courierGateway;
     }
 
+    @Override
     public Parcel register(String trackingNumber, Courier requestedCourier, Address address) {
         Courier courier = (requestedCourier == null || requestedCourier == Courier.UNKNOWN)
-                ? courierRouter.detect(trackingNumber)
+                ? courierGateway.detect(trackingNumber)
                 : requestedCourier;
 
         // Geocoding and the initial courier fetch are independent I/O calls — run them
         // concurrently on virtual threads rather than serially.
-        Future<Optional<GeoLocation>> geoFuture = virtualExecutor.submit(() -> geocodingService.geocode(address));
-        Future<CourierTrackingResult> trackingFuture = virtualExecutor.submit(() -> courierRouter.fetchTracking(courier, trackingNumber));
+        Future<Optional<GeoLocation>> geoFuture = virtualExecutor.submit(() -> geocoder.geocode(address));
+        Future<CourierTrackingResult> trackingFuture = virtualExecutor.submit(() -> courierGateway.fetchTracking(courier, trackingNumber));
 
         GeoLocation geoLocation = await(geoFuture).orElse(null);
         CourierTrackingResult tracking = await(trackingFuture);
@@ -53,18 +66,18 @@ public final class ParcelService {
                 tracking.events().isEmpty() ? null : now
         );
 
-        return repository.insert(parcel);
+        return store.insert(parcel);
     }
 
-    /** Loads the parcel, re-fetches its status from the courier, persists, and returns the fresh view. */
+    @Override
     public Optional<Parcel> getRefreshed(UUID id) {
-        Optional<Parcel> existing = repository.findById(id);
+        Optional<Parcel> existing = store.findById(id);
         if (existing.isEmpty()) {
             return Optional.empty();
         }
         Parcel parcel = existing.get();
 
-        CourierTrackingResult tracking = courierRouter.fetchTracking(parcel.courier(), parcel.trackingNumber());
+        CourierTrackingResult tracking = courierGateway.fetchTracking(parcel.courier(), parcel.trackingNumber());
 
         Parcel refreshed = tracking.status() == ParcelStatus.UNKNOWN && tracking.events().isEmpty()
                 ? parcel // courier had nothing new — don't overwrite a good status with UNKNOWN
@@ -72,21 +85,23 @@ public final class ParcelService {
 
         // Backfill geocoding if it failed at registration time.
         if (refreshed.geoLocation() == null) {
-            refreshed = geocodingService.geocode(refreshed.deliveryAddress())
+            refreshed = geocoder.geocode(refreshed.deliveryAddress())
                     .map(refreshed::withGeoLocation)
                     .orElse(refreshed);
         }
 
-        repository.update(refreshed);
+        store.update(refreshed);
         return Optional.of(refreshed);
     }
 
+    @Override
     public List<Parcel> list(int page, int size, ParcelStatus statusFilter) {
-        return repository.findAll(page, size, statusFilter);
+        return store.findAll(page, size, statusFilter);
     }
 
+    @Override
     public boolean delete(UUID id) {
-        return repository.delete(id);
+        return store.delete(id);
     }
 
     private List<TrackingEvent> mergeEvents(List<TrackingEvent> existing, List<TrackingEvent> fresh) {

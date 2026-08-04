@@ -1,27 +1,43 @@
-package com.example.parceltracker.db;
+package com.example.parceltracker.adapter.out.persistence;
 
-import com.example.parceltracker.model.*;
+import com.example.parceltracker.application.port.out.DuplicateParcelException;
+import com.example.parceltracker.application.port.out.ParcelStore;
+import com.example.parceltracker.domain.Address;
+import com.example.parceltracker.domain.Courier;
+import com.example.parceltracker.domain.GeoLocation;
+import com.example.parceltracker.domain.Parcel;
+import com.example.parceltracker.domain.ParcelStatus;
+import com.example.parceltracker.domain.TrackingEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.CollectionType;
-import org.postgresql.util.PGobject;
 
 import javax.sql.DataSource;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
-public final class ParcelRepository {
+/** JDBC/Postgres adapter implementing the {@link ParcelStore} driven port. */
+public final class PostgresParcelRepository implements ParcelStore {
 
     private final DataSource dataSource;
     private final ObjectMapper mapper;
     private final CollectionType eventListType;
 
-    public ParcelRepository(DataSource dataSource, ObjectMapper mapper) {
+    public PostgresParcelRepository(DataSource dataSource, ObjectMapper mapper) {
         this.dataSource = dataSource;
         this.mapper = mapper;
         this.eventListType = mapper.getTypeFactory().constructCollectionType(List.class, TrackingEvent.class);
     }
 
+    @Override
     public Parcel insert(Parcel p) {
         String sql = """
             INSERT INTO parcels
@@ -43,6 +59,7 @@ public final class ParcelRepository {
         }
     }
 
+    @Override
     public Optional<Parcel> findById(UUID id) {
         String sql = "SELECT * FROM parcels WHERE id = ?";
         try (Connection c = dataSource.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
@@ -55,6 +72,7 @@ public final class ParcelRepository {
         }
     }
 
+    @Override
     public List<Parcel> findAll(int page, int size, ParcelStatus statusFilter) {
         StringBuilder sql = new StringBuilder("SELECT * FROM parcels");
         if (statusFilter != null) {
@@ -81,7 +99,7 @@ public final class ParcelRepository {
         }
     }
 
-    /** Persists a status/events/geolocation refresh produced by the service layer. */
+    @Override
     public void update(Parcel p) {
         String sql = """
             UPDATE parcels SET
@@ -111,6 +129,7 @@ public final class ParcelRepository {
         }
     }
 
+    @Override
     public boolean delete(UUID id) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("DELETE FROM parcels WHERE id = ?")) {
@@ -212,12 +231,6 @@ public final class ParcelRepository {
             return mapper.readValue(json, eventListType);
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize events", e);
-        }
-    }
-
-    public static final class DuplicateParcelException extends RuntimeException {
-        public DuplicateParcelException(String trackingNumber, Courier courier, Throwable cause) {
-            super("Parcel already registered: " + trackingNumber + " / " + courier, cause);
         }
     }
 }

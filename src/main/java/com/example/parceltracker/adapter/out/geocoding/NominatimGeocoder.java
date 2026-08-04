@@ -1,7 +1,8 @@
-package com.example.parceltracker.geocoding;
+package com.example.parceltracker.adapter.out.geocoding;
 
-import com.example.parceltracker.model.Address;
-import com.example.parceltracker.model.GeoLocation;
+import com.example.parceltracker.application.port.out.Geocoder;
+import com.example.parceltracker.domain.Address;
+import com.example.parceltracker.domain.GeoLocation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.helidon.config.Config;
@@ -17,11 +18,11 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * Free, no-API-key geocoding via Nominatim (OpenStreetMap). Usage policy caps
- * this at ~1 req/sec and requires a real User-Agent — fine at 1k parcels/month
+ * {@link Geocoder} adapter backed by Nominatim (OpenStreetMap): free, no API key. Usage
+ * policy caps this at ~1 req/sec and requires a real User-Agent — fine at 1k parcels/month
  * since we only geocode once per address (result is cached on the parcel row).
  */
-public final class GeocodingService {
+public final class NominatimGeocoder implements Geocoder {
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -30,12 +31,13 @@ public final class GeocodingService {
     private final String baseUrl;
     private final String userAgent;
 
-    public GeocodingService(Config config, ObjectMapper mapper) {
+    public NominatimGeocoder(Config config, ObjectMapper mapper) {
         this.mapper = mapper;
         this.baseUrl = config.get("base-url").asString().get();
         this.userAgent = config.get("user-agent").asString().get();
     }
 
+    @Override
     public Optional<GeoLocation> geocode(Address address) {
         String query = URLEncoder.encode(address.toQueryString(), StandardCharsets.UTF_8);
         URI uri = URI.create(baseUrl + "?q=" + query + "&format=json&limit=1&addressdetails=0");

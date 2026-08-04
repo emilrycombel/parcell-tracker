@@ -1,13 +1,16 @@
 package com.example.parceltracker;
 
-import com.example.parceltracker.courier.AggregatorCourierClient;
-import com.example.parceltracker.courier.CourierRouter;
-import com.example.parceltracker.courier.InPostCourierClient;
-import com.example.parceltracker.db.DataSourceFactory;
-import com.example.parceltracker.db.ParcelRepository;
-import com.example.parceltracker.geocoding.GeocodingService;
-import com.example.parceltracker.service.ParcelService;
-import com.example.parceltracker.web.ParcelEndpoint;
+import com.example.parceltracker.adapter.in.web.ParcelEndpoint;
+import com.example.parceltracker.adapter.out.courier.AggregatorCourierClient;
+import com.example.parceltracker.adapter.out.courier.CourierRouter;
+import com.example.parceltracker.adapter.out.courier.InPostCourierClient;
+import com.example.parceltracker.adapter.out.geocoding.NominatimGeocoder;
+import com.example.parceltracker.adapter.out.persistence.DataSourceFactory;
+import com.example.parceltracker.adapter.out.persistence.PostgresParcelRepository;
+import com.example.parceltracker.application.port.out.CourierGateway;
+import com.example.parceltracker.application.port.out.Geocoder;
+import com.example.parceltracker.application.port.out.ParcelStore;
+import com.example.parceltracker.application.service.ParcelService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -24,6 +27,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+/**
+ * Composition root. This is the only place that knows about concrete adapters — it wires
+ * them into the application core (which sees only ports) and starts the web server.
+ */
 public final class Main {
 
     public static void main(String[] args) {
@@ -37,15 +44,16 @@ public final class Main {
         HikariDataSource dataSource = DataSourceFactory.create(config.get("db"));
         DataSourceFactory.applySchema(dataSource);
 
-        ParcelRepository repository = new ParcelRepository(dataSource, mapper);
-        GeocodingService geocodingService = new GeocodingService(config.get("geocoding"), mapper);
-
-        CourierRouter courierRouter = new CourierRouter(List.of(
+        // Driven adapters, referenced through their ports.
+        ParcelStore store = new PostgresParcelRepository(dataSource, mapper);
+        Geocoder geocoder = new NominatimGeocoder(config.get("geocoding"), mapper);
+        CourierGateway courierGateway = new CourierRouter(List.of(
                 new InPostCourierClient(config.get("courier.inpost"), mapper),
                 new AggregatorCourierClient(config.get("courier.aggregator"), mapper)
         ));
 
-        ParcelService parcelService = new ParcelService(repository, geocodingService, courierRouter);
+        // Application core + driving adapter.
+        ParcelService parcelService = new ParcelService(store, geocoder, courierGateway);
         ParcelEndpoint parcelEndpoint = new ParcelEndpoint(parcelService);
 
         MediaContext mediaContext = MediaContext.builder()

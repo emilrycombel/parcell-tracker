@@ -1,4 +1,4 @@
-package com.example.parceltracker.db;
+package com.example.parceltracker.adapter.out.persistence;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;

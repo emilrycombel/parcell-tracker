@@ -1,11 +1,18 @@
-package com.example.parceltracker.courier;
+package com.example.parceltracker.adapter.out.courier;
 
-import com.example.parceltracker.model.Courier;
+import com.example.parceltracker.application.port.out.CourierGateway;
+import com.example.parceltracker.application.port.out.CourierTrackingResult;
+import com.example.parceltracker.domain.Courier;
 
 import java.util.Comparator;
 import java.util.List;
 
-public final class CourierRouter {
+/**
+ * Courier adapter implementing the {@link CourierGateway} port: dispatches to the
+ * priority-ordered {@link CourierClient} that claims the request. A plain sorted-list scan,
+ * fine at this scale; revisit if the courier count grows enough to need a real registry.
+ */
+public final class CourierRouter implements CourierGateway {
 
     private final List<CourierClient> clients;
 
@@ -15,7 +22,7 @@ public final class CourierRouter {
                 .toList();
     }
 
-    /** Best-effort courier detection when the caller doesn't specify one. */
+    @Override
     public Courier detect(String trackingNumber) {
         if (InPostCourierClient.looksLikeInPostNumber(trackingNumber)) {
             return Courier.INPOST;
@@ -23,6 +30,7 @@ public final class CourierRouter {
         return Courier.UNKNOWN;
     }
 
+    @Override
     public CourierTrackingResult fetchTracking(Courier courier, String trackingNumber) {
         return clients.stream()
                 .filter(c -> c.supports(courier, trackingNumber))

@@ -1,4 +1,4 @@
-package com.example.parceltracker.model;
+package com.example.parceltracker.domain;
 
 /** Unified status, mapped from each courier's own vocabulary. */
 public enum ParcelStatus {

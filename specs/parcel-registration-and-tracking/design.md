@@ -37,15 +37,38 @@ for no query benefit. Revisit if per-event querying becomes a real need.
 
 See `META-INF/openapi.yaml`, paths `/parcels` and `/parcels/{id}`. No changes pending.
 
+## Architecture: ports & adapters (hexagonal)
+
+The code is organized as a hexagon: an application core that depends only on ports
+(interfaces), with adapters implementing those ports at the edges. Dependencies point
+inward (adapter → application → domain); the domain imports no framework.
+
+- **Driving port** `ParcelTrackingUseCase` — the four operations (register / getRefreshed /
+  list / delete) the outside world invokes. Kept as one cohesive port for this single
+  feature rather than one interface per method: the operations share a lifecycle and are
+  always wired together, so splitting them would add four constructor args at the composition
+  root for no isolation benefit. Revisit if the feature grows enough that a driving adapter
+  needs only a strict subset.
+- **Driven ports** `ParcelStore`, `Geocoder`, `CourierGateway` — everything the core needs
+  from the outside (persistence, geocoding, courier lookups). Fail-soft contracts (empty /
+  `unknown()` rather than throwing) live on the ports, so the core's error handling doesn't
+  depend on which adapter is behind them.
+- **Adapters** implement the ports and are the only things that touch Helidon, JDBC, HTTP,
+  or a specific courier/geocoder. Swapping Postgres for another store, or TrackingMore for
+  another aggregator, is a one-adapter change — the core is untouched. This is also what
+  makes the core unit-testable with in-memory fakes at the ports.
+
 ## Components touched
 
-- `model/*` — domain records
-- `db/ParcelRepository`, `db/DataSourceFactory` — persistence
-- `geocoding/GeocodingService` — Nominatim client
-- `courier/*` — client interface + InPost/aggregator implementations + router
-- `service/ParcelService` — orchestration
-- `web/ParcelEndpoint`, `web/dto/Dtos` — HTTP layer
-- `Main.java` — wiring
+- `domain/*` — pure domain records
+- `application/port/in/ParcelTrackingUseCase` — driving port
+- `application/port/out/{ParcelStore,Geocoder,CourierGateway,CourierTrackingResult,DuplicateParcelException}` — driven ports
+- `application/service/ParcelService` — core orchestration (implements the driving port)
+- `adapter/out/persistence/{PostgresParcelRepository,DataSourceFactory}` — persistence adapter
+- `adapter/out/geocoding/NominatimGeocoder` — Nominatim adapter
+- `adapter/out/courier/{CourierRouter,CourierClient,InPostCourierClient,AggregatorCourierClient}` — courier adapter
+- `adapter/in/web/{ParcelEndpoint,dto/Dtos}` — HTTP driving adapter
+- `Main.java` — composition root (wires adapters to the core)
 
 ## Error handling
 

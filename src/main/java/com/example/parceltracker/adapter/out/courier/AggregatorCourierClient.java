@@ -1,8 +1,9 @@
-package com.example.parceltracker.courier;
+package com.example.parceltracker.adapter.out.courier;
 
-import com.example.parceltracker.model.Courier;
-import com.example.parceltracker.model.ParcelStatus;
-import com.example.parceltracker.model.TrackingEvent;
+import com.example.parceltracker.application.port.out.CourierTrackingResult;
+import com.example.parceltracker.domain.Courier;
+import com.example.parceltracker.domain.ParcelStatus;
+import com.example.parceltracker.domain.TrackingEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.helidon.config.Config;
