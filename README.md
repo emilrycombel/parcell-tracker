@@ -1,0 +1,78 @@
+# Parcel Tracker
+
+Unified parcel tracking service for Polish couriers, spec-first (see
+`src/main/resources/META-INF/openapi.yaml` — served live at `/openapi.yaml`).
+
+## Design
+
+- **Helidon SE 4**, blocking-style handlers on virtual threads (no reactive/callback code).
+- **PostgreSQL** for storage — indexed on status and tracking number, JSONB for the event
+  history, lat/lon columns ready for future "parcels near X" queries.
+- **InPost**: free, direct, no API key — `GET /v1/tracking/{number}` on InPost's public
+  ShipX tracking endpoint. Tracking-number regex (`^\d{20,26}$`) auto-detects InPost when
+  the caller doesn't specify a courier.
+- **Everything else** (DPD, DHL, GLS, Poczta Polska, UPS, FedEx): routed to a pluggable
+  `AggregatorCourierClient`, wired for TrackingMore's response shape by default. It's
+  **disabled until you set `AGGREGATOR_ENABLED=true` and `AGGREGATOR_API_KEY=...`** — so
+  the service still runs entirely free out of the box for InPost-only use, and non-InPost
+  parcels simply stay `UNKNOWN` until you plug in a paid aggregator (see the pricing
+  comparison from our earlier discussion — ParcelsApp's $9-19/mo tier is the cheapest fit
+  for ~300-400 non-InPost parcels/month).
+- **Geocoding**: free, no key, via OpenStreetMap Nominatim. Result is cached on the parcel
+  row so each address is only geocoded once, respecting Nominatim's ~1 req/sec policy.
+- Registration runs geocoding and the initial courier fetch **concurrently** on virtual
+  threads. `GET /parcels/{id}` always refreshes from the courier before returning.
+
+## Run locally
+
+```bash
+docker compose up -d          # Postgres on localhost:5432
+mvn clean package
+java -jar target/parcel-tracker.jar
+```
+
+Env vars (all optional, see `application.yaml` for defaults):
+
+| Var | Purpose |
+|---|---|
+| `DB_URL`, `DB_USER`, `DB_PASSWORD` | Postgres connection |
+| `GEOCODING_USER_AGENT` | Set this to something identifying your app — Nominatim requires it |
+| `AGGREGATOR_ENABLED`, `AGGREGATOR_API_KEY`, `AGGREGATOR_BASE_URL` | Enable non-InPost couriers |
+
+## Example requests
+
+Register (InPost auto-detected from the tracking number format):
+
+```bash
+curl -X POST localhost:8080/api/v1/parcels \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trackingNumber": "590123456789012345678901",
+    "deliveryAddress": {
+      "street": "Marszałkowska",
+      "houseNumber": "1",
+      "city": "Warszawa",
+      "postalCode": "00-001",
+      "country": "PL"
+    }
+  }'
+```
+
+Fetch (this refreshes the status from InPost first):
+
+```bash
+curl localhost:8080/api/v1/parcels/{id}
+```
+
+## Notes / next steps if you outgrow this
+
+- Schema is applied via a raw `schema.sql` on boot — fine here, move to Flyway/Liquibase
+  once you have real migrations to manage.
+- `AggregatorCourierClient` maps a generic TrackingMore-like response; if you pick a
+  different aggregator (ParcelsApp, 17TRACK, Ship24) you'll need to adjust its status map
+  and JSON paths only — the router/service layer doesn't care which aggregator is behind it.
+- No auth/rate-limiting is included; add an API-key filter before exposing this publicly.
+- I could not compile-test this project in the sandbox it was built in (no outbound network
+  to resolve Maven dependencies), so treat first `mvn compile` as the real correctness
+  check — the Helidon 4 media/Jackson wiring in `Main.java` is the part most likely to need
+  a small class-name adjustment against whatever exact 4.x patch version you pin.

@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Parcel Tracker Service
+  description: >
+    Unified parcel tracking service for Polish couriers (InPost direct + aggregator
+    fallback for DPD, DHL, GLS, Poczta Polska, UPS, FedEx). Registering a parcel
+    geocodes its delivery address and performs an initial status fetch. Every GET
+    on a parcel refreshes its status from the courier before returning.
+  version: "1.0.0"
+servers:
+  - url: /api/v1
+
+paths:
+  /parcels:
+    post:
+      summary: Register a parcel for tracking
+      operationId: registerParcel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterParcelRequest'
+      responses:
+        '201':
+          description: Parcel registered, geocoded and initial status fetched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+        '400':
+          description: Invalid request
+        '409':
+          description: Parcel with this tracking number + courier already registered
+
+    get:
+      summary: List registered parcels
+      operationId: listParcels
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 200 }
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ParcelStatus' }
+      responses:
+        '200':
+          description: Page of parcels (not refreshed — use GET /parcels/{id} to refresh)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Parcel' }
+
+  /parcels/{id}:
+    get:
+      summary: Get a parcel, refreshing its status from the courier first
+      operationId: getParcel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Refreshed parcel
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parcel' }
+        '404':
+          description: Not found
+
+    delete:
+      summary: Unregister a parcel
+      operationId: deleteParcel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /health:
+    get:
+      summary: Liveness/readiness probe
+      operationId: health
+      responses:
+        '200':
+          description: OK
+
+components:
+  schemas:
+    Courier:
+      type: string
+      enum: [INPOST, DPD, POCZTA_POLSKA, DHL, GLS, UPS, FEDEX, ORLEN_PACZKA, UNKNOWN]
+
+    ParcelStatus:
+      type: string
+      enum:
+        - REGISTERED
+        - CREATED
+        - IN_TRANSIT
+        - OUT_FOR_DELIVERY
+        - READY_FOR_PICKUP
+        - DELIVERED
+        - EXCEPTION
+        - RETURNED
+        - UNKNOWN
+
+    Address:
+      type: object
+      required: [street, houseNumber, city, postalCode]
+      properties:
+        street: { type: string }
+        houseNumber: { type: string }
+        apartmentNumber: { type: string, nullable: true }
+        city: { type: string }
+        postalCode: { type: string, example: "00-001" }
+        country: { type: string, default: "PL" }
+
+    GeoLocation:
+      type: object
+      properties:
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        provider: { type: string, example: "nominatim" }
+        geocodedAt: { type: string, format: date-time }
+
+    TrackingEvent:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        rawStatus: { type: string }
+        description: { type: string }
+        location: { type: string, nullable: true }
+
+    RegisterParcelRequest:
+      type: object
+      required: [trackingNumber, deliveryAddress]
+      properties:
+        trackingNumber: { type: string }
+        courier:
+          allOf: [{ $ref: '#/components/schemas/Courier' }]
+          description: Optional — auto-detected from tracking number format if omitted
+        deliveryAddress: { $ref: '#/components/schemas/Address' }
+
+    Parcel:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trackingNumber: { type: string }
+        courier: { $ref: '#/components/schemas/Courier' }
+        status: { $ref: '#/components/schemas/ParcelStatus' }
+        deliveryAddress: { $ref: '#/components/schemas/Address' }
+        geoLocation: { $ref: '#/components/schemas/GeoLocation' }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/TrackingEvent' }
+        createdAt: { type: string, format: date-time }
+        lastRefreshedAt: { type: string, format: date-time, nullable: true }

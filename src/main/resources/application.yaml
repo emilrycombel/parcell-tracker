@@ -1,0 +1,24 @@
+server:
+  port: 8080
+  host: 0.0.0.0
+
+db:
+  url: ${DB_URL:jdbc:postgresql://localhost:5432/parcels}
+  user: ${DB_USER:parcels}
+  password: ${DB_PASSWORD:parcels}
+  pool-size: ${DB_POOL_SIZE:10}
+
+geocoding:
+  # Free, no API key. Respect Nominatim usage policy: 1 req/sec, identify yourself.
+  base-url: ${GEOCODING_BASE_URL:https://nominatim.openstreetmap.org/search}
+  user-agent: ${GEOCODING_USER_AGENT:parcel-tracker/1.0 (contact: you@example.com)}
+
+courier:
+  inpost:
+    base-url: ${INPOST_BASE_URL:https://api-shipx-pl.easypack24.net/v1/tracking}
+  aggregator:
+    # Optional fallback for non-InPost couriers (TrackingMore-compatible shape).
+    # Leave api-key empty to disable — non-InPost parcels will stay UNKNOWN until you set one.
+    enabled: ${AGGREGATOR_ENABLED:false}
+    base-url: ${AGGREGATOR_BASE_URL:https://api.trackingmore.com/v4/trackings}
+    api-key: ${AGGREGATOR_API_KEY:}
