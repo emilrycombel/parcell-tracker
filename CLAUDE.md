@@ -31,17 +31,24 @@ Current specs:
 
 ```bash
 docker compose up -d        # Postgres on localhost:5432
-mvn clean package
-java -jar target/parcel-tracker.jar
+./gradlew run               # compile + start the server (dev)
+```
+
+To build a runnable distribution instead:
+
+```bash
+./gradlew installDist                        # assembles build/install/parcel-tracker/
+./build/install/parcel-tracker/bin/parcel-tracker
 ```
 
 ```bash
-mvn test                    # run tests (see Testing below)
+./gradlew test              # run tests (see Testing below)
 ```
 
-No outbound network was available when this project was first generated, so the initial
-`mvn compile` has **not** been verified — treat it as the first real correctness check,
-particularly the Helidon media/Jackson wiring in `Main.java`.
+This is a **Gradle** build (Kotlin DSL — `build.gradle.kts`), Java 21 toolchain. The
+`application` plugin provides `run` and `installDist`. `./gradlew compileJava` is a quick
+compile check; the whole project compiles cleanly against Helidon 4.1.4, including the
+media/Jackson wiring in `Main.java`.
 
 ## Architecture map
 

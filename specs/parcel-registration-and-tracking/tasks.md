@@ -10,4 +10,4 @@
 - [x] T8: `ParcelEndpoint` + DTOs matching `openapi.yaml` (R1, R2, R4)
 - [x] T9: `openapi.yaml` as source of truth, served at `/openapi.yaml`
 - [ ] T10: Test suite (unit + Testcontainers) — not yet written, see `CLAUDE.md`
-- [ ] T11: Verify `mvn compile` in an environment with network access — unverified so far
+- [x] T11: Verify the build compiles — done via Gradle (`./gradlew build`, Java 21, Helidon 4.1.4)

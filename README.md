@@ -27,8 +27,11 @@ Unified parcel tracking service for Polish couriers, spec-first (see
 
 ```bash
 docker compose up -d          # Postgres on localhost:5432
-mvn clean package
-java -jar target/parcel-tracker.jar
+./gradlew run                 # compile + start the server
+
+# or build a runnable distribution:
+./gradlew installDist
+./build/install/parcel-tracker/bin/parcel-tracker
 ```
 
 Env vars (all optional, see `application.yaml` for defaults):
@@ -72,7 +75,6 @@ curl localhost:8080/api/v1/parcels/{id}
   different aggregator (ParcelsApp, 17TRACK, Ship24) you'll need to adjust its status map
   and JSON paths only — the router/service layer doesn't care which aggregator is behind it.
 - No auth/rate-limiting is included; add an API-key filter before exposing this publicly.
-- I could not compile-test this project in the sandbox it was built in (no outbound network
-  to resolve Maven dependencies), so treat first `mvn compile` as the real correctness
-  check — the Helidon 4 media/Jackson wiring in `Main.java` is the part most likely to need
-  a small class-name adjustment against whatever exact 4.x patch version you pin.
+- The project compiles cleanly under Gradle (Java 21, Helidon 4.1.4); the Helidon 4
+  media/Jackson wiring in `Main.java` builds without adjustment. Runtime against a live
+  Postgres + real courier endpoints is still worth a manual smoke test.
