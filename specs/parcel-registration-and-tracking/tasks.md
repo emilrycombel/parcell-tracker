@@ -13,3 +13,5 @@
   (`ParcelService`), WireMock HTTP-adapter tests (InPost/aggregator/Nominatim), and a
   Testcontainers Postgres IT (skipped without Docker). 37 tests. (R1, R2, R3, R4)
 - [x] T11: Verify the build compiles — done via Gradle (`./gradlew build`, Java 21, Helidon 4.1.4)
+- [x] T12: Robustness refinements — refresh-on-read throttle, Nominatim ~1 req/s rate limit,
+  union/dedupe event merge, per-event date tolerance (R2, R3)

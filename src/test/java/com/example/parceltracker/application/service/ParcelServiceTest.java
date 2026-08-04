@@ -144,6 +144,41 @@ class ParcelServiceTest {
     }
 
     @Test
+    void getRefreshed_mergesEvents_unionDedupedAndSorted() {
+        TrackingEvent e1 = new TrackingEvent(Instant.parse("2026-08-01T08:00:00Z"), "confirmed", "confirmed", "Warszawa");
+        courier.fetching(new CourierTrackingResult(ParcelStatus.CREATED, List.of(e1)));
+        Parcel registered = service.register("590123456789012345678901", Courier.INPOST, ADDRESS);
+
+        // Fresh feed repeats e1 (dedupe) and adds an earlier + a later event (ordering).
+        TrackingEvent earlier = new TrackingEvent(Instant.parse("2026-08-01T06:00:00Z"), "created", "created", "Kraków");
+        TrackingEvent later = new TrackingEvent(Instant.parse("2026-08-02T09:00:00Z"), "delivered", "delivered", "Warszawa");
+        courier.fetching(new CourierTrackingResult(ParcelStatus.DELIVERED, List.of(e1, later, earlier)));
+
+        Parcel refreshed = service.getRefreshed(registered.id()).orElseThrow();
+
+        assertThat(refreshed.events())
+                .extracting(TrackingEvent::rawStatus)
+                .containsExactly("created", "confirmed", "delivered"); // deduped, sorted by time
+    }
+
+    @Test
+    void getRefreshed_shorterFreshFeed_neverLosesExistingEvents() {
+        TrackingEvent a = new TrackingEvent(Instant.parse("2026-08-01T08:00:00Z"), "confirmed", "confirmed", "Warszawa");
+        TrackingEvent b = new TrackingEvent(Instant.parse("2026-08-01T12:00:00Z"), "in_transit", "in transit", "Łódź");
+        courier.fetching(new CourierTrackingResult(ParcelStatus.IN_TRANSIT, List.of(a, b)));
+        Parcel registered = service.register("590123456789012345678901", Courier.INPOST, ADDRESS);
+
+        // Courier now returns a single (different) event — must not drop a and b.
+        TrackingEvent c = new TrackingEvent(Instant.parse("2026-08-02T09:00:00Z"), "delivered", "delivered", "Warszawa");
+        courier.fetching(new CourierTrackingResult(ParcelStatus.DELIVERED, List.of(c)));
+
+        Parcel refreshed = service.getRefreshed(registered.id()).orElseThrow();
+
+        assertThat(refreshed.events()).extracting(TrackingEvent::rawStatus)
+                .containsExactly("confirmed", "in_transit", "delivered");
+    }
+
+    @Test
     void getRefreshed_backfillsGeocoding_whenMissing() {
         geocoder.setResult(Optional.empty()); // fails at registration
         courier.fetching(CourierTrackingResult.unknown());

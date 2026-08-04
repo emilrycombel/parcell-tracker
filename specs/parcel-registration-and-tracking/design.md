@@ -79,6 +79,22 @@ inward (adapter → application → domain); the domain imports no framework.
 - Courier call failure/timeout → caught inside each `CourierClient.fetchTracking`, returns
   `CourierTrackingResult.unknown()` rather than throwing — refresh keeps the prior status.
 - Malformed UUID in path → 400, not a 500 from a parse exception bubbling up.
+- Malformed event timestamp → `TrackingTimestamps.parseOrElse` falls back per-event to
+  "now" rather than throwing, so one bad date doesn't discard the whole tracking result.
+
+## Rate limiting & refresh throttle
+
+- **Refresh-on-read throttle.** `ParcelService` takes a `minRefreshInterval` (from
+  `REFRESH_MIN_INTERVAL_SECONDS`, default 300) and a `Clock`. `getRefreshed` serves stored
+  state without calling the courier if the parcel was refreshed within that window — bounding
+  courier API usage/cost when a single parcel is polled frequently. `Duration.ZERO` disables
+  it (used by the no-arg-interval convenience constructor and most unit tests).
+- **Nominatim rate limit.** `NominatimGeocoder` serializes outbound requests to at least
+  `GEOCODING_MIN_INTERVAL_MS` apart (default 1000) to respect Nominatim's ~1 req/sec policy.
+  Cheap because geocoding runs on virtual threads and happens once per address.
+- **Event merge.** `ParcelService.mergeEvents` keys events by (timestamp, raw status) into a
+  union and sorts by time — replacing the earlier size comparison, which could drop events on
+  reorder/shorter feeds.
 
 ## Testing strategy
 

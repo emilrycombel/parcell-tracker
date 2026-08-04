@@ -129,4 +129,6 @@ See `application.yaml` for the full list and defaults. The ones you'll actually 
 |---|---|
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | Postgres connection |
 | `GEOCODING_USER_AGENT` | Required by Nominatim's usage policy — set to something real |
+| `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding requests (default 1000 = ~1 req/s) |
+| `REFRESH_MIN_INTERVAL_SECONDS` | Min seconds between courier refreshes per parcel on GET (default 300; 0 = always refresh) |
 | `AGGREGATOR_ENABLED` / `AGGREGATOR_API_KEY` | Turn on non-InPost courier tracking |

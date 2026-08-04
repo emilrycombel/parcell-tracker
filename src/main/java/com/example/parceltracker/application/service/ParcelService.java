@@ -12,8 +12,14 @@ import com.example.parceltracker.domain.Parcel;
 import com.example.parceltracker.domain.ParcelStatus;
 import com.example.parceltracker.domain.TrackingEvent;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -31,12 +37,23 @@ public final class ParcelService implements ParcelTrackingUseCase {
     private final ParcelStore store;
     private final Geocoder geocoder;
     private final CourierGateway courierGateway;
+    /** Minimum time between courier refreshes for one parcel; {@link Duration#ZERO} = always refresh. */
+    private final Duration minRefreshInterval;
+    private final Clock clock;
     private final ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
+    /** Convenience for tests/callers that don't throttle: always refreshes on read. */
     public ParcelService(ParcelStore store, Geocoder geocoder, CourierGateway courierGateway) {
+        this(store, geocoder, courierGateway, Duration.ZERO, Clock.systemUTC());
+    }
+
+    public ParcelService(ParcelStore store, Geocoder geocoder, CourierGateway courierGateway,
+                         Duration minRefreshInterval, Clock clock) {
         this.store = store;
         this.geocoder = geocoder;
         this.courierGateway = courierGateway;
+        this.minRefreshInterval = minRefreshInterval;
+        this.clock = clock;
     }
 
     @Override
@@ -53,7 +70,7 @@ public final class ParcelService implements ParcelTrackingUseCase {
         GeoLocation geoLocation = await(geoFuture).orElse(null);
         CourierTrackingResult tracking = await(trackingFuture);
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Parcel parcel = new Parcel(
                 UUID.randomUUID(),
                 trackingNumber,
@@ -77,11 +94,18 @@ public final class ParcelService implements ParcelTrackingUseCase {
         }
         Parcel parcel = existing.get();
 
+        Instant now = clock.instant();
+        if (withinRefreshWindow(parcel, now)) {
+            // Refreshed recently enough — serve the stored state without hitting the courier,
+            // so hot reads of a single parcel don't hammer the courier API or run up cost.
+            return Optional.of(parcel);
+        }
+
         CourierTrackingResult tracking = courierGateway.fetchTracking(parcel.courier(), parcel.trackingNumber());
 
         Parcel refreshed = tracking.status() == ParcelStatus.UNKNOWN && tracking.events().isEmpty()
                 ? parcel // courier had nothing new — don't overwrite a good status with UNKNOWN
-                : parcel.withRefreshedTracking(tracking.status(), mergeEvents(parcel.events(), tracking.events()), Instant.now());
+                : parcel.withRefreshedTracking(tracking.status(), mergeEvents(parcel.events(), tracking.events()), now);
 
         // Backfill geocoding if it failed at registration time.
         if (refreshed.geoLocation() == null) {
@@ -104,13 +128,39 @@ public final class ParcelService implements ParcelTrackingUseCase {
         return store.delete(id);
     }
 
+    private boolean withinRefreshWindow(Parcel parcel, Instant now) {
+        return !minRefreshInterval.isZero()
+                && parcel.lastRefreshedAt() != null
+                && Duration.between(parcel.lastRefreshedAt(), now).compareTo(minRefreshInterval) < 0;
+    }
+
+    /**
+     * Merges the freshly fetched events with what we already had, keyed by (timestamp,
+     * rawStatus): a union that dedupes and stays sorted by time. Unlike a size comparison,
+     * this never loses events when a courier reorders its feed or returns the same count with
+     * changed content.
+     */
     private List<TrackingEvent> mergeEvents(List<TrackingEvent> existing, List<TrackingEvent> fresh) {
         if (fresh.isEmpty()) {
             return existing;
         }
-        // Courier feeds are typically full history each time — prefer the freshest full list,
-        // but never end up with fewer events than we already had recorded.
-        return fresh.size() >= existing.size() ? fresh : existing;
+        Map<String, TrackingEvent> byKey = new LinkedHashMap<>();
+        for (TrackingEvent e : existing) {
+            byKey.put(eventKey(e), e);
+        }
+        for (TrackingEvent e : fresh) {
+            byKey.put(eventKey(e), e); // fresh wins on a key collision
+        }
+        List<TrackingEvent> merged = new ArrayList<>(byKey.values());
+        merged.sort(Comparator.comparing(TrackingEvent::timestamp,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+        return List.copyOf(merged);
+    }
+
+    private static String eventKey(TrackingEvent e) {
+        String ts = e.timestamp() == null ? "" : e.timestamp().toString();
+        String raw = e.rawStatus() == null ? "" : e.rawStatus();
+        return ts + '|' + raw;
     }
 
     private <T> T await(Future<T> future) {

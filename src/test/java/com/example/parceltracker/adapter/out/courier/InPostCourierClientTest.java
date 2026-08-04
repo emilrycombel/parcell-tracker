@@ -90,6 +90,25 @@ class InPostCourierClientTest {
     }
 
     @Test
+    void malformedEventDate_keepsAllEvents_ratherThanDiscardingTheFetch() {
+        stub("333", 200, """
+            {
+              "status": "taken_by_courier",
+              "tracking_details": [
+                {"status": "confirmed", "datetime": "not-a-date", "point_name": "Warszawa"},
+                {"status": "taken_by_courier", "datetime": "2026-08-02T07:30:00Z", "point_name": "Łódź"}
+              ]
+            }
+            """);
+
+        CourierTrackingResult result = client.fetchTracking("333");
+
+        assertThat(result.status()).isEqualTo(ParcelStatus.IN_TRANSIT);
+        assertThat(result.events()).hasSize(2); // the bad date didn't sink the whole result
+        assertThat(result.events().get(0).timestamp()).isNotNull(); // fell back rather than throwing
+    }
+
+    @Test
     void notFound_returnsUnknown() {
         stub("404num", 404, "{}");
         assertThat(client.fetchTracking("404num")).usingRecursiveComparison()

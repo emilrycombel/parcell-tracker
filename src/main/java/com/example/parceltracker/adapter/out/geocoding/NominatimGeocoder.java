@@ -30,15 +30,21 @@ public final class NominatimGeocoder implements Geocoder {
     private final ObjectMapper mapper;
     private final String baseUrl;
     private final String userAgent;
+    /** Minimum spacing between outbound requests — Nominatim's policy is ~1 req/sec. */
+    private final long minIntervalMillis;
+    private final Object rateGate = new Object();
+    private long lastRequestMillis = 0L;
 
     public NominatimGeocoder(Config config, ObjectMapper mapper) {
         this.mapper = mapper;
         this.baseUrl = config.get("base-url").asString().get();
         this.userAgent = config.get("user-agent").asString().get();
+        this.minIntervalMillis = config.get("min-interval-ms").asInt().orElse(1000);
     }
 
     @Override
     public Optional<GeoLocation> geocode(Address address) {
+        awaitRateLimit();
         String query = URLEncoder.encode(address.toQueryString(), StandardCharsets.UTF_8);
         URI uri = URI.create(baseUrl + "?q=" + query + "&format=json&limit=1&addressdetails=0");
 
@@ -65,6 +71,29 @@ public final class NominatimGeocoder implements Geocoder {
         } catch (Exception e) {
             // Geocoding failure should not block parcel registration/refresh.
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Blocks until at least {@code minIntervalMillis} has elapsed since the previous request,
+     * serializing concurrent callers so we stay within Nominatim's usage policy. Cheap here:
+     * geocoding runs on virtual threads and only happens once per address.
+     */
+    private void awaitRateLimit() {
+        if (minIntervalMillis <= 0) {
+            return;
+        }
+        synchronized (rateGate) {
+            long now = System.currentTimeMillis();
+            long waitMillis = lastRequestMillis + minIntervalMillis - now;
+            if (waitMillis > 0) {
+                try {
+                    Thread.sleep(waitMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            lastRequestMillis = System.currentTimeMillis();
         }
     }
 }

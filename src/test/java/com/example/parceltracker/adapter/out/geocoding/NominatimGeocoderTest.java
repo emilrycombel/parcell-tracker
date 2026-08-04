@@ -77,6 +77,26 @@ class NominatimGeocoderTest {
     }
 
     @Test
+    void enforcesMinimumSpacingBetweenRequests() {
+        NominatimGeocoder throttled = new NominatimGeocoder(TestConfig.of(Map.of(
+                "base-url", wm.baseUrl() + "/search",
+                "user-agent", "parcel-tracker-test/1.0",
+                "min-interval-ms", "400"
+        )), MAPPER);
+        wm.stubFor(get(urlPathEqualTo("/search"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("[{\"lat\": \"52.0\", \"lon\": \"21.0\"}]")));
+
+        long start = System.nanoTime();
+        throttled.geocode(ADDRESS);
+        throttled.geocode(ADDRESS); // must wait ~400ms behind the first
+        long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+
+        assertThat(elapsedMillis).isGreaterThanOrEqualTo(380L); // ~400ms spacing, small slack
+    }
+
+    @Test
     void sendsUserAgentHeader() {
         wm.stubFor(get(urlPathEqualTo("/search"))
                 .willReturn(aResponse().withStatus(200)

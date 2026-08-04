@@ -23,10 +23,17 @@ Polish couriers via an optional paid aggregator.
 ### R2: Refresh status on read
 - **WHEN** a client GETs a parcel by ID **THE SYSTEM SHALL** call the courier for the
   latest status before returning the parcel, and persist the refreshed state.
+- **IF** the parcel was already refreshed within the configured minimum interval
+  (`REFRESH_MIN_INTERVAL_SECONDS`, default 300) **THEN THE SYSTEM SHALL** return the stored
+  state without calling the courier, to bound courier API usage/cost on hot reads. A value
+  of 0 disables the throttle (always refresh).
 - **IF** the courier call fails or returns nothing new **THEN THE SYSTEM SHALL** return
   the last known good status rather than overwriting it with `UNKNOWN`.
+- **WHEN** merging refreshed events with stored ones **THE SYSTEM SHALL** keep the union
+  (deduped by timestamp + raw status, sorted by time) so events are never lost if a courier
+  reorders its feed or returns a shorter list.
 - **IF** a parcel has no geolocation yet (e.g. geocoding failed at registration) **THEN
-  THE SYSTEM SHALL** retry geocoding on refresh.
+  THE SYSTEM SHALL** retry geocoding on refresh (subject to the same refresh throttle).
 
 ### R3: Courier routing
 - **WHEN** the courier is InPost **THE SYSTEM SHALL** use the free direct ShipX tracking

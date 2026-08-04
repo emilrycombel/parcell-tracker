@@ -12,8 +12,14 @@ geocoding:
   # Free, no API key. Respect Nominatim usage policy: 1 req/sec, identify yourself.
   base-url: ${GEOCODING_BASE_URL:https://nominatim.openstreetmap.org/search}
   user-agent: ${GEOCODING_USER_AGENT:parcel-tracker/1.0 (contact: you@example.com)}
+  # Minimum spacing between geocoding requests (ms). 1000 keeps us within Nominatim's policy.
+  min-interval-ms: ${GEOCODING_MIN_INTERVAL_MS:1000}
 
 courier:
+  # GET /parcels/{id} refreshes from the courier, but not more often than this per parcel —
+  # bounds courier API usage/cost on hot reads. 0 disables throttling (always refresh).
+  refresh:
+    min-interval-seconds: ${REFRESH_MIN_INTERVAL_SECONDS:300}
   inpost:
     base-url: ${INPOST_BASE_URL:https://api-shipx-pl.easypack24.net/v1/tracking}
   aggregator:

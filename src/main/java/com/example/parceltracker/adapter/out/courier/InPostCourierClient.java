@@ -106,7 +106,7 @@ public final class InPostCourierClient implements CourierClient {
                 for (JsonNode entry : history) {
                     String status2 = entry.path("status").asText(null);
                     String dateStr = entry.path("datetime").asText(null);
-                    Instant ts = dateStr != null ? Instant.parse(dateStr) : Instant.now();
+                    Instant ts = TrackingTimestamps.parseOrElse(dateStr, Instant.now());
                     events.add(new TrackingEvent(
                             ts,
                             status2,

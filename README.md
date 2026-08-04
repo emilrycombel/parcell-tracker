@@ -40,6 +40,8 @@ Env vars (all optional, see `application.yaml` for defaults):
 |---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | Postgres connection |
 | `GEOCODING_USER_AGENT` | Set this to something identifying your app — Nominatim requires it |
+| `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding calls (default 1000 = ~1 req/s) |
+| `REFRESH_MIN_INTERVAL_SECONDS` | Throttle: min seconds between courier refreshes per parcel on GET (default 300; 0 disables) |
 | `AGGREGATOR_ENABLED`, `AGGREGATOR_API_KEY`, `AGGREGATOR_BASE_URL` | Enable non-InPost couriers |
 
 ## Example requests
@@ -61,7 +63,8 @@ curl -X POST localhost:8080/api/v1/parcels \
   }'
 ```
 
-Fetch (this refreshes the status from InPost first):
+Fetch (refreshes the status from InPost first, unless it was refreshed within
+`REFRESH_MIN_INTERVAL_SECONDS`):
 
 ```bash
 curl localhost:8080/api/v1/parcels/{id}

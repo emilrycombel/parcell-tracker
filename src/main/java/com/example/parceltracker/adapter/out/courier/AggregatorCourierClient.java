@@ -93,7 +93,7 @@ public final class AggregatorCourierClient implements CourierClient {
             if (originInfo.isArray()) {
                 for (JsonNode entry : originInfo) {
                     String dateStr = entry.path("Date").asText(null);
-                    Instant ts = dateStr != null ? Instant.parse(dateStr) : Instant.now();
+                    Instant ts = TrackingTimestamps.parseOrElse(dateStr, Instant.now());
                     events.add(new TrackingEvent(
                             ts,
                             entry.path("StatusDescription").asText(null),

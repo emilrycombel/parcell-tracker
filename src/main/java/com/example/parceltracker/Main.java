@@ -25,6 +25,8 @@ import io.helidon.webserver.http.HttpRouting;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -53,7 +55,10 @@ public final class Main {
         ));
 
         // Application core + driving adapter.
-        ParcelService parcelService = new ParcelService(store, geocoder, courierGateway);
+        Duration refreshMinInterval = Duration.ofSeconds(
+                config.get("courier.refresh.min-interval-seconds").asInt().orElse(300));
+        ParcelService parcelService = new ParcelService(
+                store, geocoder, courierGateway, refreshMinInterval, Clock.systemUTC());
         ParcelEndpoint parcelEndpoint = new ParcelEndpoint(parcelService);
 
         MediaContext mediaContext = MediaContext.builder()
