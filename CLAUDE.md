@@ -119,7 +119,15 @@ Run with `./gradlew test`. The suite is layered along the ports:
   runs where Docker is available and is skipped (not failed) where it isn't.
 
 Shared test helpers live in `src/test/java/.../testsupport/` (`TestConfig` builds an isolated
-Helidon `Config` from a map; the fakes implement the driven ports).
+Helidon `Config` from a map; `MutableClock` for time-based logic; the fakes implement the
+driven ports).
+
+**Live smoke tests** (`src/test/java/.../live/`, tagged `@Tag("live")`) hit the *real*
+InPost / Nominatim / aggregator endpoints. They're excluded from the default `test` task and
+run only via `./gradlew liveTest`. Each self-skips unless the env it needs is present
+(`LIVE_INPOST_TRACKING_NUMBER`, `LIVE_GEOCODING=1`, `AGGREGATOR_API_KEY` +
+`LIVE_AGGREGATOR_TRACKING_NUMBER`). Never wire these into CI — they're for manual
+verification against reality.
 
 ## Environment variables
 

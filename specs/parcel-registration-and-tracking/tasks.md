@@ -15,3 +15,5 @@
 - [x] T11: Verify the build compiles — done via Gradle (`./gradlew build`, Java 21, Helidon 4.1.4)
 - [x] T12: Robustness refinements — refresh-on-read throttle, Nominatim ~1 req/s rate limit,
   union/dedupe event merge, per-event date tolerance (R2, R3)
+- [x] T13: Gated live-sandbox smoke tests (`@Tag("live")`, `./gradlew liveTest`) for InPost,
+  Nominatim, and the aggregator — opt-in via env, excluded from the default suite/CI

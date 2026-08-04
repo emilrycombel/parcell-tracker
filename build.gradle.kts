@@ -57,7 +57,10 @@ application {
 }
 
 tasks.named<Test>("test") {
-    useJUnitPlatform()
+    // The default suite is CI-safe: never touches real courier/geocoding endpoints.
+    useJUnitPlatform {
+        excludeTags("live")
+    }
     testLogging {
         events("passed", "skipped", "failed")
     }
@@ -73,4 +76,20 @@ tasks.named<Test>("test") {
             }
         }
     })
+}
+
+// Opt-in smoke tests against real courier/geocoding sandboxes. NOT part of `check`/CI.
+// Each test self-skips unless the credentials/data it needs are present in the environment.
+// Run with: ./gradlew liveTest
+tasks.register<Test>("liveTest") {
+    description = "Runs @Tag(\"live\") smoke tests against real external endpoints (opt-in via env vars)."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("live")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
