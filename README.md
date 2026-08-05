@@ -18,8 +18,12 @@ Unified parcel tracking service for Polish couriers, spec-first (see
   parcels simply stay `UNKNOWN` until you plug in a paid aggregator (see the pricing
   comparison from our earlier discussion — ParcelsApp's $9-19/mo tier is the cheapest fit
   for ~300-400 non-InPost parcels/month).
-- **Geocoding**: free, no key, via OpenStreetMap Nominatim. Result is cached on the parcel
-  row so each address is only geocoded once, respecting Nominatim's ~1 req/sec policy.
+- **Geocoding**: **opt-in and disabled by default** — set `GEOCODING_BASE_URL` to a
+  Nominatim-compatible `/search` endpoint to enable it, otherwise parcels register without
+  coordinates. Production should use a self-hosted/controlled Nominatim (OSM policy forbids
+  package/vehicle-tracking services on the public instance); for local dev only you can point
+  it at `https://nominatim.openstreetmap.org/search`. When enabled, the result is cached on the
+  parcel row (geocoded once per address) and the ~1 req/sec policy is respected.
 - Registration runs geocoding and the initial courier fetch **concurrently** on virtual
   threads. `GET /parcels/{id}` refreshes from the courier before returning, but not more
   often than `REFRESH_MIN_INTERVAL_SECONDS` per parcel (default 300; 0 = always refresh).
@@ -40,6 +44,7 @@ Env vars (all optional, see `application.yaml` for defaults):
 | Var | Purpose |
 |---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | Postgres connection |
+| `GEOCODING_BASE_URL` | Nominatim-compatible `/search` endpoint. Unset = geocoding disabled. Prod: self-hosted Nominatim; dev only: `https://nominatim.openstreetmap.org/search` |
 | `GEOCODING_USER_AGENT` | Set this to something identifying your app — Nominatim requires it |
 | `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding calls (default 1000 = ~1 req/s) |
 | `REFRESH_MIN_INTERVAL_SECONDS` | Throttle: min seconds between courier refreshes per parcel on GET (default 300; 0 disables) |

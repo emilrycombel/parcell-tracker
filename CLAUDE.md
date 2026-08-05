@@ -7,7 +7,8 @@ Guidance for Claude Code (and any human reading over its shoulder) working in th
 A Helidon SE 4 service that unifies parcel tracking across Polish couriers. InPost is
 tracked for free via its public ShipX endpoint; every other courier (DPD, DHL, GLS,
 Poczta Polska, UPS, FedEx) routes through a pluggable paid aggregator client. Delivery
-addresses are geocoded for free via OpenStreetMap Nominatim. Postgres is the store.
+addresses are geocoded via a Nominatim-compatible endpoint — **opt-in**, disabled unless
+`GEOCODING_BASE_URL` is configured (off the public OSM instance by default). Postgres is the store.
 
 ## Spec-driven workflow — read this first
 
@@ -76,7 +77,8 @@ adapter/
   out/persistence/ PostgresParcelRepository (implements ParcelStore), DataSourceFactory, schema.sql
   out/courier/    CourierRouter (implements CourierGateway), CourierClient SPI + the per-courier
                   clients: InPostCourierClient (free), AggregatorCourierClient (paid, off by default)
-  out/geocoding/  NominatimGeocoder (implements Geocoder) — free Nominatim client
+  out/geocoding/  NominatimGeocoder + DisabledGeocoder (both implement Geocoder); Main.geocoder
+                  picks between them — geocoding is opt-in via GEOCODING_BASE_URL
 Main.java                       Composition root — the only place that names concrete adapters.
 ```
 
@@ -146,7 +148,8 @@ The ones you'll actually touch:
 | Var | Purpose |
 |---|---|
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | Postgres connection |
-| `GEOCODING_USER_AGENT` | Required by Nominatim's usage policy — set to something real |
+| `GEOCODING_BASE_URL` | Nominatim-compatible `/search` endpoint. **Unset = geocoding disabled** (parcels register without coordinates). Prod: self-hosted Nominatim; dev only: `https://nominatim.openstreetmap.org/search` |
+| `GEOCODING_USER_AGENT` | Sent to the geocoder — required by Nominatim's usage policy, set to something real |
 | `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding requests (default 1000 = ~1 req/s) |
 | `REFRESH_MIN_INTERVAL_SECONDS` | Min seconds between courier refreshes per parcel on GET (default 300; 0 = always refresh) |
 | `AGGREGATOR_ENABLED` / `AGGREGATOR_API_KEY` | Turn on non-InPost courier tracking |

@@ -22,3 +22,6 @@
 - [x] T15: Startup smoke test (`ApplicationSmokeIT`) — boots the real wiring via `Main.start`
   against Testcontainers Postgres and drives it over HTTP (config/`${VAR:default}`, datasource,
   schema, web/media/routing). Skipped without Docker. (R1, R2, R4)
+- [x] T16: Geocoding is opt-in — disabled unless `GEOCODING_BASE_URL` is set (`DisabledGeocoder`
+  vs `NominatimGeocoder`, chosen in `Main.geocoder`); off the public Nominatim instance by
+  default. Endpoint to configure documented in design.md. (R1)

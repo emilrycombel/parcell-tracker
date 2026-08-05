@@ -15,10 +15,14 @@ Polish couriers via an optional paid aggregator.
   tracking number format (20-26 digit numeric string), otherwise mark it `UNKNOWN`.
 - **WHEN** a parcel is registered **THE SYSTEM SHALL** geocode the delivery address and
   fetch the initial courier status concurrently, not sequentially.
+- **WHERE** a geocoding endpoint is configured (`GEOCODING_BASE_URL`) **THE SYSTEM SHALL**
+  geocode via it; **OTHERWISE** geocoding is disabled and the parcel registers without
+  coordinates. Geocoding is opt-in — the public Nominatim instance is not used by default
+  (see design.md for the endpoint to configure).
 - **IF** a parcel with the same tracking number and courier is already registered **THEN
   THE SYSTEM SHALL** reject the request with 409 Conflict rather than creating a duplicate.
-- **IF** geocoding fails **THEN THE SYSTEM SHALL** still register the parcel with no
-  geolocation, rather than failing the whole registration.
+- **IF** geocoding fails or is disabled **THEN THE SYSTEM SHALL** still register the parcel
+  with no geolocation, rather than failing the whole registration.
 
 ### R2: Refresh status on read
 - **WHEN** a client GETs a parcel by ID **THE SYSTEM SHALL** call the courier for the

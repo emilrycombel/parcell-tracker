@@ -65,7 +65,8 @@ inward (adapter → application → domain); the domain imports no framework.
 - `application/port/out/{ParcelStore,Geocoder,CourierGateway,CourierTrackingResult,DuplicateParcelException}` — driven ports
 - `application/service/ParcelService` — core orchestration (implements the driving port)
 - `adapter/out/persistence/{PostgresParcelRepository,DataSourceFactory}` — persistence adapter
-- `adapter/out/geocoding/NominatimGeocoder` — Nominatim adapter
+- `adapter/out/geocoding/{NominatimGeocoder,DisabledGeocoder}` — geocoding adapters (opt-in;
+  `Main.geocoder` picks between them based on `GEOCODING_BASE_URL`)
 - `adapter/out/courier/{CourierRouter,CourierClient,InPostCourierClient,AggregatorCourierClient}` — courier adapter
 - `adapter/in/web/{ParcelEndpoint,dto/Dtos}` — HTTP driving adapter
 - `Main.java` — composition root (wires adapters to the core)
@@ -95,6 +96,25 @@ inward (adapter → application → domain); the domain imports no framework.
 - **Nominatim rate limit.** `NominatimGeocoder` serializes outbound requests to at least
   `GEOCODING_MIN_INTERVAL_MS` apart (default 1000) to respect Nominatim's ~1 req/sec policy.
   Cheap because geocoding runs on virtual threads and happens once per address.
+
+## Geocoding endpoint (opt-in) — the URL to configure
+
+Geocoding is **disabled by default**. The composition root (`Main.geocoder`) wires a real
+`NominatimGeocoder` only when `GEOCODING_BASE_URL` is set; otherwise it wires `DisabledGeocoder`
+(always returns empty), so parcels register without coordinates. This mirrors the aggregator's
+"opt-in, off by default" model and keeps the service off the public Nominatim instance unless an
+operator deliberately points at one.
+
+To enable geocoding, set `GEOCODING_BASE_URL` to a Nominatim-compatible `/search` endpoint:
+
+| Environment | `GEOCODING_BASE_URL` |
+|---|---|
+| Production | A **self-hosted / controlled** Nominatim, e.g. `https://nominatim.internal.example.com/search`. OSM's usage policy forbids package/vehicle-tracking services from using the public instance, and it may block such requests. |
+| Local dev only | `https://nominatim.openstreetmap.org/search` (respect the ~1 req/sec policy; set a real `GEOCODING_USER_AGENT`). |
+
+When enabled, the address → lat/lon result is cached on the parcel row (geocoded once per
+address) and refresh backfills it if it was missing. All of this is fail-soft: an unreachable or
+unconfigured endpoint never blocks registration.
 - **Event merge.** `ParcelService.mergeEvents` keys events by (timestamp, raw status) into a
   union and sorts by time — replacing the earlier size comparison, which could drop events on
   reorder/shorter feeds.

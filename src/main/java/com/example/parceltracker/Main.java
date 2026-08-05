@@ -4,6 +4,7 @@ import com.example.parceltracker.adapter.in.web.ParcelEndpoint;
 import com.example.parceltracker.adapter.out.courier.AggregatorCourierClient;
 import com.example.parceltracker.adapter.out.courier.CourierRouter;
 import com.example.parceltracker.adapter.out.courier.InPostCourierClient;
+import com.example.parceltracker.adapter.out.geocoding.DisabledGeocoder;
 import com.example.parceltracker.adapter.out.geocoding.NominatimGeocoder;
 import com.example.parceltracker.adapter.out.persistence.DataSourceFactory;
 import com.example.parceltracker.adapter.out.persistence.PostgresParcelRepository;
@@ -74,7 +75,7 @@ public final class Main {
 
         // Driven adapters, referenced through their ports.
         ParcelStore store = new PostgresParcelRepository(dataSource, mapper);
-        Geocoder geocoder = new NominatimGeocoder(config.get("geocoding"), mapper);
+        Geocoder geocoder = geocoder(config.get("geocoding"), mapper);
         CourierGateway courierGateway = new CourierRouter(List.of(
                 new InPostCourierClient(config.get("courier.inpost"), mapper),
                 new AggregatorCourierClient(config.get("courier.aggregator"), mapper)
@@ -100,6 +101,19 @@ public final class Main {
                 .start();
 
         return new RunningApp(server, dataSource);
+    }
+
+    /**
+     * Chooses the geocoding adapter: a real {@link NominatimGeocoder} when an endpoint is
+     * configured, otherwise the fail-safe {@link DisabledGeocoder}. Geocoding is opt-in — see
+     * application.yaml and the parcel-registration spec for the endpoint to configure.
+     */
+    static Geocoder geocoder(Config geocodingConfig, ObjectMapper mapper) {
+        String baseUrl = geocodingConfig.get("base-url").asString().orElse("");
+        if (baseUrl.isBlank()) {
+            return new DisabledGeocoder();
+        }
+        return new NominatimGeocoder(geocodingConfig, mapper);
     }
 
     private static void routing(HttpRouting.Builder routing, ParcelEndpoint parcelEndpoint) {

@@ -11,11 +11,12 @@ db:
   pool-size: ${DB_POOL_SIZE:10}
 
 geocoding:
-  # The public Nominatim default is for local dev only. OSM's usage policy forbids
-  # package/vehicle-tracking services from relying on the public instance, and requests may
-  # be blocked — production MUST point GEOCODING_BASE_URL at a self-hosted/controlled Nominatim.
-  # Geocoding is fail-soft: if the endpoint is unreachable, parcels register without coordinates.
-  base-url: ${GEOCODING_BASE_URL:https://nominatim.openstreetmap.org/search}
+  # Geocoding is DISABLED unless GEOCODING_BASE_URL is set — parcels then register without
+  # coordinates (fail-safe). Set it to a Nominatim-compatible /search endpoint to enable:
+  #   - production: a self-hosted / controlled Nominatim (OSM policy forbids package- and
+  #     vehicle-tracking services from using the public instance, which may block requests)
+  #   - local dev only: https://nominatim.openstreetmap.org/search
+  base-url: ${GEOCODING_BASE_URL:}
   # Quoted: the "contact: " substring would otherwise make this line invalid YAML.
   user-agent: "${GEOCODING_USER_AGENT:parcel-tracker/1.0 (+set GEOCODING_USER_AGENT to a real contact)}"
   # Minimum spacing between geocoding requests (ms). 1000 keeps us within Nominatim's policy.
