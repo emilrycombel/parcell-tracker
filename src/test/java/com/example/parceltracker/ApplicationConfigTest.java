@@ -21,18 +21,31 @@ class ApplicationConfigTest {
                 .build();
     }
 
+    /** Env var value if the runner defines it, otherwise the documented default — mirrors the filter. */
+    private static String envOr(String name, String def) {
+        String v = System.getenv(name);
+        return v != null ? v : def;
+    }
+
     @Test
     void defaultsResolveToUsableValues() {
         Config config = config();
 
+        // Expected values are derived env-or-default so the test is correct whether or not the
+        // runner defines these variables — it verifies the filter's contract, not a bare default.
         assertThat(config.get("db.url").asString().get())
-                .isEqualTo("jdbc:postgresql://localhost:5432/parcels")
-                .doesNotContain("${"); // not a literal placeholder
-        assertThat(config.get("db.pool-size").asInt().get()).isEqualTo(10);       // hyphenated key
-        assertThat(config.get("geocoding.min-interval-ms").asInt().get()).isEqualTo(1000);
-        assertThat(config.get("courier.refresh.min-interval-seconds").asInt().get()).isEqualTo(300);
-        assertThat(config.get("courier.aggregator.enabled").asBoolean().get()).isFalse(); // deeply nested
-        assertThat(config.get("courier.aggregator.api-key").asString().orElse("")).isEmpty();
+                .isEqualTo(envOr("DB_URL", "jdbc:postgresql://localhost:5432/parcels"))
+                .doesNotContain("${"); // never a literal placeholder
+        assertThat(config.get("db.pool-size").asInt().get())
+                .isEqualTo(Integer.parseInt(envOr("DB_POOL_SIZE", "10")));          // hyphenated key
+        assertThat(config.get("geocoding.min-interval-ms").asInt().get())
+                .isEqualTo(Integer.parseInt(envOr("GEOCODING_MIN_INTERVAL_MS", "1000")));
+        assertThat(config.get("courier.refresh.min-interval-seconds").asInt().get())
+                .isEqualTo(Integer.parseInt(envOr("REFRESH_MIN_INTERVAL_SECONDS", "300")));
+        assertThat(config.get("courier.aggregator.enabled").asBoolean().get())
+                .isEqualTo(Boolean.parseBoolean(envOr("AGGREGATOR_ENABLED", "false"))); // deeply nested
+        assertThat(config.get("courier.aggregator.api-key").asString().orElse(""))
+                .isEqualTo(envOr("AGGREGATOR_API_KEY", ""));
     }
 
     /**
@@ -47,7 +60,8 @@ class ApplicationConfigTest {
                 .addSource(ConfigSources.classpath("application.yaml"))
                 .build();
 
-        assertThat(config.get("db.url").asString().get()).isEqualTo("jdbc:override"); // map wins
-        assertThat(config.get("courier.aggregator.enabled").asBoolean().get()).isFalse(); // yaml for the rest
+        assertThat(config.get("db.url").asString().get()).isEqualTo("jdbc:override"); // map wins over yaml
+        assertThat(config.get("courier.aggregator.enabled").asBoolean().get())
+                .isEqualTo(Boolean.parseBoolean(envOr("AGGREGATOR_ENABLED", "false"))); // yaml (env-or-default) for the rest
     }
 }
