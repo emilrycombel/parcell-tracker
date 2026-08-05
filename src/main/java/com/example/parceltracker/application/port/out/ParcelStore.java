@@ -29,8 +29,15 @@ public interface ParcelStore {
      */
     List<Parcel> findAll(int page, int size, ParcelStatus statusFilter, String externalIdFilter);
 
-    /** Persists a status/events/geolocation refresh produced by the application layer. */
-    void update(Parcel parcel);
+    /**
+     * Persists a refresh with optimistic concurrency: the update applies only if the stored row
+     * still has {@code parcel.version()} (i.e. no other refresh committed in between), and bumps
+     * the version on success.
+     *
+     * @return {@code true} if persisted; {@code false} if a concurrent update won the race (the
+     *         caller should reload and retry) or the row no longer exists.
+     */
+    boolean update(Parcel parcel);
 
     boolean delete(UUID id);
 }

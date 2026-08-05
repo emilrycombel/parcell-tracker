@@ -17,8 +17,10 @@
   union/dedupe event merge, per-event date tolerance (R2, R3)
 - [x] T13: Gated live-sandbox smoke tests (`@Tag("live")`, `./gradlew liveTest`) for InPost,
   Nominatim, and the aggregator — opt-in via env, excluded from the default suite/CI (R1, R2, R3)
-- [ ] T14: Optimistic locking for concurrent refresh (version column or `SELECT … FOR UPDATE`
-  merge) — deferred; current behavior is self-healing, see design.md "Known limitation" (R2)
+- [x] T14: Optimistic locking for concurrent refresh — `version` column + version-checked
+  `ParcelStore.update` (boolean) + bounded reload-and-remerge retry in `ParcelService`. Postgres
+  IT (`update_isOptimisticallyLocked_onVersion`) + service test (`ParcelServiceConcurrencyTest`).
+  See design.md "Concurrent refresh: optimistic locking". (R2)
 - [x] T15: Startup smoke test (`ApplicationSmokeIT`) — boots the real wiring via `Main.start`
   against Testcontainers Postgres and drives it over HTTP (config/`${VAR:default}`, datasource,
   schema, web/media/routing). Skipped without Docker. (R1, R2, R4)

@@ -44,8 +44,8 @@ public final class PostgresParcelRepository implements ParcelStore {
                 (id, tracking_number, external_id, courier, status,
                  street, house_number, apartment_number, city, postal_code, country,
                  latitude, longitude, geocode_provider, geocoded_at,
-                 events, created_at, last_refreshed_at)
-            VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?::jsonb, ?, ?)
+                 events, created_at, last_refreshed_at, version)
+            VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?::jsonb, ?, ?, ?)
             """;
         try (Connection c = dataSource.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             bindAll(ps, p);
@@ -106,12 +106,14 @@ public final class PostgresParcelRepository implements ParcelStore {
     }
 
     @Override
-    public void update(Parcel p) {
+    public boolean update(Parcel p) {
+        // Optimistic lock: only overwrite the row if its version is still the one we read, and
+        // bump it. A concurrent refresh that committed first changes the version → 0 rows updated.
         String sql = """
             UPDATE parcels SET
                 status = ?, latitude = ?, longitude = ?, geocode_provider = ?, geocoded_at = ?,
-                events = ?::jsonb, last_refreshed_at = ?
-            WHERE id = ?
+                events = ?::jsonb, last_refreshed_at = ?, version = version + 1
+            WHERE id = ? AND version = ?
             """;
         try (Connection c = dataSource.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, p.status().name());
@@ -129,7 +131,8 @@ public final class PostgresParcelRepository implements ParcelStore {
             ps.setString(6, writeEvents(p.events()));
             ps.setTimestamp(7, p.lastRefreshedAt() != null ? Timestamp.from(p.lastRefreshedAt()) : null);
             ps.setObject(8, p.id());
-            ps.executeUpdate();
+            ps.setLong(9, p.version());
+            return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update parcel " + p.id(), e);
         }
@@ -179,6 +182,7 @@ public final class PostgresParcelRepository implements ParcelStore {
         ps.setString(16, writeEvents(p.events()));
         ps.setTimestamp(17, Timestamp.from(p.createdAt()));
         ps.setTimestamp(18, p.lastRefreshedAt() != null ? Timestamp.from(p.lastRefreshedAt()) : null);
+        ps.setLong(19, p.version());
     }
 
     private Parcel mapRow(ResultSet rs) throws SQLException {
@@ -215,7 +219,8 @@ public final class PostgresParcelRepository implements ParcelStore {
                 geo,
                 readEvents(rs.getString("events")),
                 toInstant(rs.getTimestamp("created_at")),
-                lastRefreshed != null ? lastRefreshed.toInstant() : null
+                lastRefreshed != null ? lastRefreshed.toInstant() : null,
+                rs.getLong("version")
         );
     }
 

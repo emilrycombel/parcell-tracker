@@ -119,16 +119,24 @@ unconfigured endpoint never blocks registration.
   union and sorts by time — replacing the earlier size comparison, which could drop events on
   reorder/shorter feeds.
 
-## Known limitation: concurrent refresh (no optimistic locking yet)
+## Concurrent refresh: optimistic locking (T14)
 
-`getRefreshed` does read → courier fetch → `store.update` without a row lock or version check,
-so two simultaneous refreshes of the same parcel can race on the write (a classic lost
-update). We accept this for now because it is **self-healing**: couriers return full history
-each time and `mergeEvents` is a union, so the next refresh re-fetches and re-writes the
-complete set. The refresh throttle also makes concurrent refreshes of one parcel rare. If this
-becomes a real problem, add an optimistic-lock `version` column (bump-and-check in `update`,
-retry on conflict) or move the merge into a short `SELECT … FOR UPDATE` transaction *after*
-the courier call. Tracked as T14.
+`getRefreshed` reads → fetches the courier (slow I/O, no lock) → persists. To stop two parallel
+refreshes of the same parcel from clobbering each other, the write is version-checked rather
+than unconditional:
+
+- `parcels` has a `version BIGINT` column, carried on the `Parcel` record.
+- `ParcelStore.update` applies `… SET …, version = version + 1 WHERE id = ? AND version = ?`
+  and returns `true` only if a row matched (no concurrent commit in between); `false` on a lost
+  race. The Postgres adapter and the in-memory fake both honor this.
+- `ParcelService` wraps the persist in a bounded retry (`MAX_REFRESH_ATTEMPTS`): on a `false`,
+  it reloads the now-current parcel and re-runs `applyTracking` — re-merging its already-fetched
+  events onto the latest state (the merge is a union, so nothing is lost). If the reloaded row is
+  now within the refresh window (a concurrent refresh just updated it), it returns that instead
+  of writing again. The courier is fetched once, not per attempt.
+
+Holding a row lock across the courier HTTP call was rejected (slow I/O under lock); optimistic
+locking + retry keeps the lock-free read/fetch and only contends on the short write.
 
 ## Testing strategy
 

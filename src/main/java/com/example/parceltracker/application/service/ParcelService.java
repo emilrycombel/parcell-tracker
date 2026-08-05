@@ -34,6 +34,9 @@ import java.util.concurrent.Future;
  */
 public final class ParcelService implements ParcelTrackingUseCase {
 
+    /** Bounded retries when a refresh loses the optimistic-lock race; conflicts are rare. */
+    private static final int MAX_REFRESH_ATTEMPTS = 3;
+
     private final ParcelStore store;
     private final Geocoder geocoder;
     private final CourierGateway courierGateway;
@@ -81,7 +84,8 @@ public final class ParcelService implements ParcelTrackingUseCase {
                 geoLocation,
                 tracking.events(),
                 now,
-                tracking.events().isEmpty() ? null : now
+                tracking.events().isEmpty() ? null : now,
+                0L
         );
 
         return store.insert(parcel);
@@ -95,8 +99,7 @@ public final class ParcelService implements ParcelTrackingUseCase {
         }
         Parcel parcel = existing.get();
 
-        Instant now = clock.instant();
-        if (withinRefreshWindow(parcel, now)) {
+        if (withinRefreshWindow(parcel, clock.instant())) {
             // Refreshed recently enough — serve the stored state without hitting the courier,
             // so hot reads of a single parcel don't hammer the courier API or run up cost.
             return Optional.of(parcel);
@@ -104,21 +107,42 @@ public final class ParcelService implements ParcelTrackingUseCase {
 
         CourierTrackingResult tracking = courierGateway.fetchTracking(parcel.courier(), parcel.trackingNumber());
 
+        // Persist with optimistic concurrency. If a parallel refresh committed first, our
+        // version-checked update fails; reload the latest and re-merge our fetched tracking onto
+        // it so no events are lost (the merge is a union). Bounded retry — conflicts are rare.
+        Parcel base = parcel;
+        for (int attempt = 0; attempt < MAX_REFRESH_ATTEMPTS; attempt++) {
+            Parcel refreshed = applyTracking(base, tracking, clock.instant());
+            if (store.update(refreshed)) {
+                return Optional.of(refreshed);
+            }
+            Optional<Parcel> reloaded = store.findById(id);
+            if (reloaded.isEmpty()) {
+                return Optional.of(refreshed); // deleted concurrently — nothing to persist onto
+            }
+            base = reloaded.get();
+            if (withinRefreshWindow(base, clock.instant())) {
+                return Optional.of(base); // a concurrent refresh already brought it up to date
+            }
+        }
+        return Optional.of(base); // gave up after retries — return the latest we saw
+    }
+
+    /** Applies a courier result to a parcel: status/event merge (or a bare refresh stamp) + geo backfill. */
+    private Parcel applyTracking(Parcel base, CourierTrackingResult tracking, Instant now) {
         Parcel refreshed = tracking.status() == ParcelStatus.UNKNOWN && tracking.events().isEmpty()
                 // Courier had nothing new — keep the prior status/events, but still record that we
                 // tried, so the throttle engages instead of re-fetching on every subsequent read.
-                ? parcel.withRefreshAttemptAt(now)
-                : parcel.withRefreshedTracking(tracking.status(), mergeEvents(parcel.events(), tracking.events()), now);
+                ? base.withRefreshAttemptAt(now)
+                : base.withRefreshedTracking(tracking.status(), mergeEvents(base.events(), tracking.events()), now);
 
-        // Backfill geocoding if it failed at registration time.
+        // Backfill geocoding if it failed at registration time (skipped once coordinates exist).
         if (refreshed.geoLocation() == null) {
             refreshed = geocoder.geocode(refreshed.deliveryAddress())
                     .map(refreshed::withGeoLocation)
                     .orElse(refreshed);
         }
-
-        store.update(refreshed);
-        return Optional.of(refreshed);
+        return refreshed;
     }
 
     @Override

@@ -49,8 +49,13 @@ public final class InMemoryParcelStore implements ParcelStore {
     }
 
     @Override
-    public void update(Parcel parcel) {
-        byId.put(parcel.id(), parcel);
+    public boolean update(Parcel parcel) {
+        Parcel current = byId.get(parcel.id());
+        if (current == null || current.version() != parcel.version()) {
+            return false; // gone, or a concurrent update changed the version first
+        }
+        byId.put(parcel.id(), parcel.withVersion(parcel.version() + 1));
+        return true;
     }
 
     @Override

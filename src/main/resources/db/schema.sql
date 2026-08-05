@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS parcels (
 
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
     last_refreshed_at  TIMESTAMPTZ,
+    version            BIGINT       NOT NULL DEFAULT 0,
 
     CONSTRAINT uq_parcels_tracking UNIQUE (tracking_number, courier)
 );

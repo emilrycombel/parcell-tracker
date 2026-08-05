@@ -88,7 +88,7 @@ class PostgresParcelRepositoryIT {
         List<TrackingEvent> events = List.of(
                 new TrackingEvent(Instant.parse("2026-08-01T08:00:00Z"), "confirmed", "confirmed", "Warszawa"));
         return new Parcel(UUID.randomUUID(), trackingNumber, externalId, courier, status, address, geo, events,
-                Instant.parse("2026-08-01T07:00:00Z"), null);
+                Instant.parse("2026-08-01T07:00:00Z"), null, 0L);
     }
 
     @Test
@@ -170,6 +170,27 @@ class PostgresParcelRepositoryIT {
         // Filter composes with status.
         assertThat(repository.findAll(0, 10, ParcelStatus.REGISTERED, "ORDER-1")).hasSize(2);
         assertThat(repository.findAll(0, 10, ParcelStatus.DELIVERED, "ORDER-1")).isEmpty();
+    }
+
+    @Test
+    void update_isOptimisticallyLocked_onVersion() {
+        Parcel parcel = sample("v1", Courier.INPOST, ParcelStatus.CREATED);
+        repository.insert(parcel);
+
+        Parcel loaded = repository.findById(parcel.id()).orElseThrow();
+        assertThat(loaded.version()).isEqualTo(0L);
+
+        // First update from version 0 applies and bumps the version to 1.
+        boolean first = repository.update(loaded.withRefreshedTracking(
+                ParcelStatus.IN_TRANSIT, loaded.events(), Instant.parse("2026-08-02T09:00:00Z")));
+        assertThat(first).isTrue();
+        assertThat(repository.findById(parcel.id()).orElseThrow().version()).isEqualTo(1L);
+
+        // A second update from the now-stale version-0 handle loses the race (no rows touched).
+        boolean stale = repository.update(loaded.withRefreshedTracking(
+                ParcelStatus.DELIVERED, loaded.events(), Instant.parse("2026-08-03T09:00:00Z")));
+        assertThat(stale).isFalse();
+        assertThat(repository.findById(parcel.id()).orElseThrow().status()).isEqualTo(ParcelStatus.IN_TRANSIT);
     }
 
     @Test
