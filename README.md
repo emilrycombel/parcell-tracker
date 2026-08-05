@@ -12,12 +12,12 @@ Unified parcel tracking service for Polish couriers, spec-first (see
   ShipX tracking endpoint. Tracking-number regex (`^\d{20,26}$`) auto-detects InPost when
   the caller doesn't specify a courier.
 - **Everything else** (DPD, DHL, GLS, Poczta Polska, UPS, FedEx): routed to a pluggable
-  `AggregatorCourierClient`, wired for TrackingMore's response shape by default. It's
-  **disabled until you set `AGGREGATOR_ENABLED=true` and `AGGREGATOR_API_KEY=...`** — so
-  the service still runs entirely free out of the box for InPost-only use, and non-InPost
-  parcels simply stay `UNKNOWN` until you plug in a paid aggregator (see the pricing
-  comparison from our earlier discussion — ParcelsApp's $9-19/mo tier is the cheapest fit
-  for ~300-400 non-InPost parcels/month).
+  `AggregatorCourierClient` backed by one of several providers — **TrackingMore** (default),
+  **17TRACK**, or **Track123** — selected via `AGGREGATOR_PROVIDER`. It's **disabled until you
+  set `AGGREGATOR_ENABLED=true` and `AGGREGATOR_API_KEY=...`**, so the service still runs
+  entirely free out of the box for InPost-only use, and non-InPost parcels simply stay
+  `UNKNOWN` until you plug one in. Adding another aggregator = one `AggregatorProvider`
+  implementation in `adapter/out/courier` registered in `AggregatorProviders`.
 - **Geocoding**: **opt-in and disabled by default** — set `GEOCODING_BASE_URL` to a
   Nominatim-compatible `/search` endpoint to enable it, otherwise parcels register without
   coordinates. Production should use a self-hosted/controlled Nominatim (OSM policy forbids
@@ -48,7 +48,9 @@ Env vars (all optional, see `application.yaml` for defaults):
 | `GEOCODING_USER_AGENT` | Set this to something identifying your app — Nominatim requires it |
 | `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding calls (default 1000 = ~1 req/s) |
 | `REFRESH_MIN_INTERVAL_SECONDS` | Throttle: min seconds between courier refreshes per parcel on GET (default 300; 0 disables) |
-| `AGGREGATOR_ENABLED`, `AGGREGATOR_API_KEY`, `AGGREGATOR_BASE_URL` | Enable non-InPost couriers |
+| `AGGREGATOR_ENABLED`, `AGGREGATOR_API_KEY` | Enable non-InPost courier tracking |
+| `AGGREGATOR_PROVIDER` | `trackingmore` (default), `17track`, or `track123` |
+| `AGGREGATOR_BASE_URL` | Override the selected provider's default endpoint (optional) |
 
 ## Example requests
 
@@ -88,9 +90,11 @@ curl localhost:8080/api/v1/parcels/{id}
 
 - Schema is applied via a raw `schema.sql` on boot — fine here, move to Flyway/Liquibase
   once you have real migrations to manage.
-- `AggregatorCourierClient` maps a generic TrackingMore-like response; if you pick a
-  different aggregator (ParcelsApp, 17TRACK, Ship24) you'll need to adjust its status map
-  and JSON paths only — the router/service layer doesn't care which aggregator is behind it.
+- Aggregator integrations are pluggable `AggregatorProvider`s (TrackingMore, 17TRACK,
+  Track123). Adding another (e.g. Ship24, AfterShip) = one provider class registered in
+  `AggregatorProviders` — the router/service layer doesn't care which is behind it. The
+  17TRACK/Track123 JSON paths are wired to their documented shapes; validate against a live
+  key via `./gradlew liveTest` before relying on them (see `specs/aggregator-providers/`).
 - No auth/rate-limiting is included; add an API-key filter before exposing this publicly.
 - The project compiles cleanly under Gradle (Java 21, Helidon 4.1.4); the Helidon 4
   media/Jackson wiring in `Main.java` builds without adjustment. Runtime against a live

@@ -17,11 +17,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Opt-in smoke test against the paid aggregator's real endpoint. Skipped unless both
  * AGGREGATOR_API_KEY and LIVE_AGGREGATOR_TRACKING_NUMBER are set (costs money / needs a
- * registered shipment). AGGREGATOR_BASE_URL overrides the default TrackingMore URL. Tagged
+ * registered shipment). AGGREGATOR_PROVIDER selects the integration (trackingmore | 17track |
+ * track123, default trackingmore); AGGREGATOR_BASE_URL overrides its default endpoint. Tagged
  * "live" — never in `test`.
  *
  * Run with:
- *   AGGREGATOR_API_KEY=... LIVE_AGGREGATOR_TRACKING_NUMBER=... ./gradlew liveTest
+ *   AGGREGATOR_API_KEY=... LIVE_AGGREGATOR_TRACKING_NUMBER=... [AGGREGATOR_PROVIDER=17track] ./gradlew liveTest
  */
 @Tag("live")
 class AggregatorLiveTest {
@@ -35,10 +36,12 @@ class AggregatorLiveTest {
         assumeTrue(number != null && !number.isBlank(),
                 "Set LIVE_AGGREGATOR_TRACKING_NUMBER to run this live test");
 
-        String baseUrl = System.getenv().getOrDefault(
-                "AGGREGATOR_BASE_URL", "https://api.trackingmore.com/v4/trackings");
+        // Which integration to hit (default trackingmore); base-url empty -> provider default.
+        String providerId = System.getenv().getOrDefault("AGGREGATOR_PROVIDER", "trackingmore");
+        String baseUrl = System.getenv().getOrDefault("AGGREGATOR_BASE_URL", "");
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         AggregatorCourierClient client = new AggregatorCourierClient(TestConfig.of(Map.of(
+                "provider", providerId,
                 "base-url", baseUrl,
                 "enabled", "true",
                 "api-key", apiKey
@@ -49,7 +52,7 @@ class AggregatorLiveTest {
         assertThat(result).isNotNull();
         // A real, known shipment must resolve to a real status — not the fail-soft UNKNOWN.
         assertThat(result.status()).isNotEqualTo(ParcelStatus.UNKNOWN);
-        System.out.println("[live] Aggregator " + number + " -> " + result.status()
+        System.out.println("[live] Aggregator[" + providerId + "] " + number + " -> " + result.status()
                 + " (" + result.events().size() + " events)");
     }
 }

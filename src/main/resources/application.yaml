@@ -30,8 +30,11 @@ courier:
   inpost:
     base-url: ${INPOST_BASE_URL:https://api-shipx-pl.easypack24.net/v1/tracking}
   aggregator:
-    # Optional fallback for non-InPost couriers (TrackingMore-compatible shape).
-    # Leave api-key empty to disable — non-InPost parcels will stay UNKNOWN until you set one.
+    # Optional paid fallback for non-InPost couriers. Disabled unless enabled=true AND an
+    # api-key is set — non-InPost parcels stay UNKNOWN until then (service runs free by default).
     enabled: ${AGGREGATOR_ENABLED:false}
-    base-url: ${AGGREGATOR_BASE_URL:https://api.trackingmore.com/v4/trackings}
+    # One active integration: trackingmore | 17track | track123.
+    provider: ${AGGREGATOR_PROVIDER:trackingmore}
+    # Empty -> the selected provider's default endpoint; set to override.
+    base-url: ${AGGREGATOR_BASE_URL:}
     api-key: ${AGGREGATOR_API_KEY:}

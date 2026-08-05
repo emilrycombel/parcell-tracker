@@ -6,7 +6,8 @@ Guidance for Claude Code (and any human reading over its shoulder) working in th
 
 A Helidon SE 4 service that unifies parcel tracking across Polish couriers. InPost is
 tracked for free via its public ShipX endpoint; every other courier (DPD, DHL, GLS,
-Poczta Polska, UPS, FedEx) routes through a pluggable paid aggregator client. Delivery
+Poczta Polska, UPS, FedEx) routes through a pluggable paid aggregator client with a choice of
+provider (TrackingMore, 17TRACK, Track123), one active at a time via `AGGREGATOR_PROVIDER`. Delivery
 addresses are geocoded via a Nominatim-compatible endpoint — **opt-in**, disabled unless
 `GEOCODING_BASE_URL` is configured (off the public OSM instance by default). Postgres is the store.
 
@@ -29,6 +30,8 @@ Current specs:
   list, delete parcels). Status: implemented, see its `tasks.md`.
 - `specs/external-order-linking/` — attach a caller order reference (`externalId`) to a
   parcel and list parcels by it (`GET /parcels?externalId=`). Status: implemented.
+- `specs/aggregator-providers/` — pluggable tracking-aggregator integrations (TrackingMore,
+  17TRACK, Track123), one active via `AGGREGATOR_PROVIDER`. Status: implemented.
 
 ## Build & run
 
@@ -76,7 +79,9 @@ adapter/
                   dto/Dtos          Wire DTOs, matching openapi.yaml exactly.
   out/persistence/ PostgresParcelRepository (implements ParcelStore), DataSourceFactory, schema.sql
   out/courier/    CourierRouter (implements CourierGateway), CourierClient SPI + the per-courier
-                  clients: InPostCourierClient (free), AggregatorCourierClient (paid, off by default)
+                  clients: InPostCourierClient (free), AggregatorCourierClient (paid, off by default).
+                  The aggregator delegates to one AggregatorProvider (TrackingMore/17TRACK/Track123)
+                  from the AggregatorProviders registry, chosen by AGGREGATOR_PROVIDER.
   out/geocoding/  NominatimGeocoder + DisabledGeocoder (both implement Geocoder); Main.geocoder
                   picks between them — geocoding is opt-in via GEOCODING_BASE_URL
 Main.java                       Composition root — the only place that names concrete adapters.
@@ -99,6 +104,9 @@ served live at `/openapi.yaml`. If you change an endpoint's shape, update the sp
 - **Courier clients are pluggable.** Adding a courier = a new `CourierClient` implementation
   in `adapter/out/courier` + registering it in `Main.java`'s `CourierRouter` list. Don't
   special-case couriers inside `ParcelService` or the web layer.
+- **Aggregator providers are pluggable.** Adding a tracking aggregator = a new
+  `AggregatorProvider` in `adapter/out/courier` registered in `AggregatorProviders`. One is
+  active at a time via `AGGREGATOR_PROVIDER`; `AggregatorCourierClient` delegates to it.
 - **Free-by-default.** Anything that costs money (the aggregator) must be opt-in via config
   and the service must run and be useful with it disabled.
 - **DTOs are separate from domain records.** Don't leak `domain.*` types directly into JSON
@@ -153,3 +161,5 @@ The ones you'll actually touch:
 | `GEOCODING_MIN_INTERVAL_MS` | Min spacing between geocoding requests (default 1000 = ~1 req/s) |
 | `REFRESH_MIN_INTERVAL_SECONDS` | Min seconds between courier refreshes per parcel on GET (default 300; 0 = always refresh) |
 | `AGGREGATOR_ENABLED` / `AGGREGATOR_API_KEY` | Turn on non-InPost courier tracking |
+| `AGGREGATOR_PROVIDER` | Which aggregator to use: `trackingmore` (default), `17track`, `track123` |
+| `AGGREGATOR_BASE_URL` | Override the selected provider's default endpoint (optional) |
