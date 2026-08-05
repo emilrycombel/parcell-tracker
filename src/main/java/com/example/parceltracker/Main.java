@@ -35,6 +35,15 @@ import java.util.List;
  */
 public final class Main {
 
+    /** A running application: the web server plus the datasource it owns. Closeable for tests. */
+    public record RunningApp(WebServer server, HikariDataSource dataSource) implements AutoCloseable {
+        @Override
+        public void close() {
+            server.stop();
+            dataSource.close();
+        }
+    }
+
     public static void main(String[] args) {
         // Helidon doesn't resolve ${VAR:default} placeholders natively — add the filter that does,
         // otherwise application.yaml's defaults (JDBC URL, ports, …) are taken literally.
@@ -42,6 +51,19 @@ public final class Main {
                 .addFilter(new EnvSubstitutionConfigFilter())
                 .build();
 
+        RunningApp app = start(config);
+        int port = app.server().port();
+        System.out.println("Parcel Tracker started on http://localhost:" + port);
+        System.out.println("OpenAPI spec:            http://localhost:" + port + "/openapi.yaml");
+        System.out.println("Register a parcel:  POST http://localhost:" + port + "/api/v1/parcels");
+    }
+
+    /**
+     * Wires the adapters into the core and starts the web server for the given config. This is
+     * the whole composition root; {@code main} just builds the config and prints startup info.
+     * Returned {@link RunningApp} owns the datasource so callers (e.g. tests) can shut it down.
+     */
+    public static RunningApp start(Config config) {
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -77,9 +99,7 @@ public final class Main {
                 .build()
                 .start();
 
-        System.out.println("Parcel Tracker started on http://localhost:" + server.port());
-        System.out.println("OpenAPI spec:            http://localhost:" + server.port() + "/openapi.yaml");
-        System.out.println("Register a parcel:  POST http://localhost:" + server.port() + "/api/v1/parcels");
+        return new RunningApp(server, dataSource);
     }
 
     private static void routing(HttpRouting.Builder routing, ParcelEndpoint parcelEndpoint) {

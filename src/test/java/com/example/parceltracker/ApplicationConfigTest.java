@@ -1,7 +1,10 @@
 package com.example.parceltracker;
 
 import io.helidon.config.Config;
+import io.helidon.config.ConfigSources;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,5 +33,21 @@ class ApplicationConfigTest {
         assertThat(config.get("courier.refresh.min-interval-seconds").asInt().get()).isEqualTo(300);
         assertThat(config.get("courier.aggregator.enabled").asBoolean().get()).isFalse(); // deeply nested
         assertThat(config.get("courier.aggregator.api-key").asString().orElse("")).isEmpty();
+    }
+
+    /**
+     * The startup smoke test (ApplicationSmokeIT) relies on an explicit map source overriding
+     * application.yaml — this pins that priority so it can't silently regress.
+     */
+    @Test
+    void explicitSourceOverridesYaml() {
+        Config config = Config.builder()
+                .addFilter(new EnvSubstitutionConfigFilter())
+                .addSource(ConfigSources.create(Map.of("db.url", "jdbc:override")))
+                .addSource(ConfigSources.classpath("application.yaml"))
+                .build();
+
+        assertThat(config.get("db.url").asString().get()).isEqualTo("jdbc:override"); // map wins
+        assertThat(config.get("courier.aggregator.enabled").asBoolean().get()).isFalse(); // yaml for the rest
     }
 }

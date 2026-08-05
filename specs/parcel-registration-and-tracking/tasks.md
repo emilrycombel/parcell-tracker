@@ -19,3 +19,6 @@
   Nominatim, and the aggregator — opt-in via env, excluded from the default suite/CI (R1, R2, R3)
 - [ ] T14: Optimistic locking for concurrent refresh (version column or `SELECT … FOR UPDATE`
   merge) — deferred; current behavior is self-healing, see design.md "Known limitation" (R2)
+- [x] T15: Startup smoke test (`ApplicationSmokeIT`) — boots the real wiring via `Main.start`
+  against Testcontainers Postgres and drives it over HTTP (config/`${VAR:default}`, datasource,
+  schema, web/media/routing). Skipped without Docker. (R1, R2, R4)

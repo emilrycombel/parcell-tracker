@@ -119,6 +119,10 @@ Run with `./gradlew test`. The suite is layered along the ports:
 - **Persistence** — `PostgresParcelRepositoryIT` runs against a real Postgres via
   **Testcontainers**. It's annotated `@Testcontainers(disabledWithoutDocker = true)`, so it
   runs where Docker is available and is skipped (not failed) where it isn't.
+- **Startup smoke** — `ApplicationSmokeIT` boots the whole app via `Main.start(config)` against
+  Testcontainers Postgres and drives it over HTTP (proves config resolution incl.
+  `${VAR:default}`, datasource + schema, web/media/routing all wire up). External courier/geocoding
+  URLs point at a dead port so it stays offline/fail-soft. Also `disabledWithoutDocker`.
 
 Shared test helpers live in `src/test/java/.../testsupport/` (`TestConfig` builds an isolated
 Helidon `Config` from a map; `MutableClock` for time-based logic; the fakes implement the
