@@ -1,0 +1,40 @@
+server:
+  port: ${SERVER_PORT:8080}
+  # Default to loopback: this API has no auth yet, so external exposure must be a deliberate
+  # deployment choice (set SERVER_HOST=0.0.0.0 behind an authenticated ingress).
+  host: ${SERVER_HOST:localhost}
+
+db:
+  url: ${DB_URL:jdbc:postgresql://localhost:5432/parcels}
+  user: ${DB_USER:parcels}
+  password: ${DB_PASSWORD:parcels}
+  pool-size: ${DB_POOL_SIZE:10}
+
+geocoding:
+  # Geocoding is DISABLED unless GEOCODING_BASE_URL is set — parcels then register without
+  # coordinates (fail-safe). Set it to a Nominatim-compatible /search endpoint to enable:
+  #   - production: a self-hosted / controlled Nominatim (OSM policy forbids package- and
+  #     vehicle-tracking services from using the public instance, which may block requests)
+  #   - local dev only: https://nominatim.openstreetmap.org/search
+  base-url: ${GEOCODING_BASE_URL:}
+  # Quoted: the "contact: " substring would otherwise make this line invalid YAML.
+  user-agent: "${GEOCODING_USER_AGENT:parcel-tracker/1.0 (+set GEOCODING_USER_AGENT to a real contact)}"
+  # Minimum spacing between geocoding requests (ms). 1000 keeps us within Nominatim's policy.
+  min-interval-ms: ${GEOCODING_MIN_INTERVAL_MS:1000}
+
+courier:
+  # GET /parcels/{id} refreshes from the courier, but not more often than this per parcel —
+  # bounds courier API usage/cost on hot reads. 0 disables throttling (always refresh).
+  refresh:
+    min-interval-seconds: ${REFRESH_MIN_INTERVAL_SECONDS:300}
+  inpost:
+    base-url: ${INPOST_BASE_URL:https://api-shipx-pl.easypack24.net/v1/tracking}
+  aggregator:
+    # Optional paid fallback for non-InPost couriers. Disabled unless enabled=true AND an
+    # api-key is set — non-InPost parcels stay UNKNOWN until then (service runs free by default).
+    enabled: ${AGGREGATOR_ENABLED:false}
+    # One active integration: trackingmore | 17track | track123.
+    provider: ${AGGREGATOR_PROVIDER:trackingmore}
+    # Empty -> the selected provider's default endpoint; set to override.
+    base-url: ${AGGREGATOR_BASE_URL:}
+    api-key: ${AGGREGATOR_API_KEY:}
